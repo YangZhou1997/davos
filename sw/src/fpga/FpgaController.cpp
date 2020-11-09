@@ -45,8 +45,10 @@ FpgaController::FpgaController(int fd, int byfd)
 {
    //open control device
    m_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+   printf("m_base address: %lx\n", m_base);
    //open bypass device
    by_base =  mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, byfd, 0);
+   printf("by_base address: %lx\n", by_base);
 }
 
 FpgaController::~FpgaController()
@@ -337,6 +339,7 @@ void FpgaController::writeReg(userCtrlAddr addr, uint32_t value)
 void FpgaController::writeReg(dmaCtrlAddr addr, uint32_t value)
 {
    volatile uint32_t* wPtr = (uint32_t*) (((uint64_t) m_base) + dmaRegAddressOffset +  (uint64_t) ((uint32_t) addr << 5));
+   printf("writeReg: wPtr = %lx\n", wPtr);
    uint32_t writeVal = htols(value);
    *wPtr = writeVal;
 }

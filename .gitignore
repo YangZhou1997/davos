@@ -57,3 +57,7 @@ doc/
 
 # wireshar
 *.pcapng
+
+build/
+iprepo/
+ip/

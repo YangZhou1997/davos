@@ -21,7 +21,7 @@ endif()
 # check DEVICE_NAME
 # TODO apply FORCE only when parent??
 if (DEVICE_NAME STREQUAL "vc709")
-   set(FPGA_PART xc7vx690tffg1761-2 CACHE STRING "FPGA part" FORCE)
+   set(FPGA_PART xc7vx690tffg1761-3 CACHE STRING "FPGA part" FORCE)
    set(FPGA_FAMILY 7series CACHE STRING "FPGA family" FORCE)
    set(NETWORK_BANDWIDTH 10 CACHE STRING "Network bandwidth")
    set(DATA_WIDTH 8 CACHE STRING "Network stack data width")

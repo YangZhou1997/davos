@@ -11,7 +11,7 @@ add_files mem_read_cmd_merger_512.cpp
 #add_files -tb test_mem_read_cmd_merger_512.cpp
 
 open_solution "solution1"
-set_part {xc7vx690tffg1761-2}
+set_part {xc7vx690tffg1761-3}
 create_clock -period 6.4 -name default
 
 csynth_design

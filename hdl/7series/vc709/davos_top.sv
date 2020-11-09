@@ -120,14 +120,18 @@ output wire[3:0] sfp_tx_disable,
   //input wire                          RxD,
   //output wire                         TxD,
   
-    input wire         button_center,
-    input wire         button_north,
+//   @yang, only retain button_east
+    // input wire         button_center,
+    // input wire         button_north,
     input wire         button_east,
-    input wire         button_south,
-    input wire         button_west,
-  
-    input wire[7:0]    gpio_switch,
-    output wire[7:0]   led 
+    // input wire         button_south,
+    // input wire         button_west,
+    
+    // @yang, remove gpio_switch, as we already allocate the IO ports to ddr sram. 
+    // input wire[7:0]    gpio_switch,
+
+    //@yang, temporary cut it to six to save more ports for ddr. 
+    output wire[5:0]   led 
 );
 
 

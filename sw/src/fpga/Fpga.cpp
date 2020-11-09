@@ -97,8 +97,15 @@ void Fpga::initializeMemory() {
    struct xdma_huge_mapping map;
    map.npages = huge.size / (2 * 1024 * 1024);
    map.dma_addr = (unsigned long*) calloc(map.npages, sizeof(unsigned long*));
-   printf("IOCTL_XDMA_MAPPING_GET\n"); fflush(stdout);
+   if(map.dma_addr == NULL){
+       printf("calloc %lu error\n", map.npages);
+       return;
+   }
+//    @yang, debugging
+   printf("npages: %lu\n", map.npages); fflush(stdout);
 
+   printf("IOCTL_XDMA_MAPPING_GET\n"); fflush(stdout);
+    
    if (ioctl(fd, IOCTL_XDMA_MAPPING_GET, &map) == -1) {
       printf("IOCTL GET failed.\n");
       //return -1;
@@ -106,6 +113,7 @@ void Fpga::initializeMemory() {
 
    //Insert TLB entries
    printf("npages: %lu, write TLB\n", map.npages); fflush(stdout);
+//    return;
 
    unsigned long vaddr = (unsigned long) huge_base;
    for (int i = 0; i < map.npages; i++) {

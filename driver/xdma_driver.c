@@ -433,7 +433,7 @@ static int ioctl_do_buffer_set(struct dev_inst *inst, unsigned long arg)
   for (i=0; i < npages; i++) {
       SetPageReserved(inst->huge_pages[i]);
       if (i % 512 == 0) {
-        //printk(KERN_INFO "huge dma_addr: %p\n", page_to_phys(inst->huge_pages[i]));
+        // printk(KERN_INFO "huge dma_addr: %p\n", page_to_phys(inst->huge_pages[i]));
         npage_count++;
       }
   }
@@ -469,13 +469,13 @@ static int ioctl_do_mapping_get(struct dev_inst *inst, unsigned long arg)
   dma_addr = kmalloc(sizeof(unsigned long*) * map.npages, GFP_KERNEL);
   for (i = 0, j = 0; i < npages; i++) { //TODO += 512
     if (i % 512 == 0) {
-      //printk(KERN_INFO "dma_addr: %p\n", page_to_phys(inst->huge_pages[i]));
+    //   printk(KERN_INFO "dma_addr: %p\n", page_to_phys(inst->huge_pages[i]));
       dma_addr[j] = page_to_phys(inst->huge_pages[i]);
       j++;
     }
   }
   printk(KERN_INFO "copy to user size: %lu\n", sizeof(struct xdma_huge_mapping));
-
+  
   if (copy_to_user((struct xdma_huge_mapping*)arg, &map, sizeof(struct xdma_huge_mapping))) {
     goto error;
   }

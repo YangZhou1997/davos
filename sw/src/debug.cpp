@@ -40,15 +40,15 @@ int main(int argc, char *argv[]) {
    fpga::Fpga::setNodeId(0);
    fpga::Fpga::initializeMemory();
 
-   fpga::FpgaController* controller = fpga::Fpga::getController();
+//    fpga::FpgaController* controller = fpga::Fpga::getController();
 
-	fpga::Fpga::getController()->printDebugRegs();
-   fpga::Fpga::getController()->printDmaStatsRegs();
-   fpga::Fpga::getController()->printDdrStatsRegs(0);
-   fpga::Fpga::getController()->printDdrStatsRegs(1);
-   fpga::Fpga::getController()->printNetStatsRegs();
+// 	fpga::Fpga::getController()->printDebugRegs();
+//    fpga::Fpga::getController()->printDmaStatsRegs();
+//    fpga::Fpga::getController()->printDdrStatsRegs(0);
+//    fpga::Fpga::getController()->printDdrStatsRegs(1);
+//    fpga::Fpga::getController()->printNetStatsRegs();
 
-   fpga::Fpga::clear();
+//    fpga::Fpga::clear();
 
 	return 0;
 

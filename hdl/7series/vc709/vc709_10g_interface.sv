@@ -73,7 +73,8 @@ module vc709_10g_interface(
     output logic        clk_ref_200_out,
     output logic        network_reset_done,
     
-    output logic[7:0]   led
+    //@yang, temporary cut it to six to save more ports for ddr. 
+    output logic[5:0]   led
 
 );
 
@@ -84,8 +85,8 @@ wire                                  clk_ref_200_i;
 
 wire[7:0] core0_status;
 wire[7:0] core1_status;
-wire[7:0] core2_status;
-wire[7:0] core3_status;
+// wire[7:0] core2_status;
+// wire[7:0] core3_status;
 
 // Shared clk signals
 wire gt_txclk322;
@@ -457,8 +458,8 @@ assign led[2] = reset;
 assign led[3] = core_reset;
 assign led[4] = core0_status[0];
 assign led[5] = core1_status[0];
-assign led[6] = core2_status[0];
-assign led[7] = core3_status[0];
+// assign led[6] = core2_status[0];
+// assign led[7] = core3_status[0];
 
 endmodule
 `default_nettype wire
