@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-set (PROJECT_NAME echo_server_application)
+set (PROJECT_NAME mcrouter)
 project(${PROJECT_NAME})
 
 # Include custom Find<Module>.cmake scripts to enable searching for Vivado HLS
@@ -21,9 +21,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/../../cma
 #endif()
 
 
-set(FPGA_PART xc7vx690tffg1761-3 CACHE STRING "FPGA part")
-#set(DATA_WIDTH 8 CACHE STRING "Width of data path in bytes")
-set(CLOCK_PERIOD 6.4 CACHE STRING "Target clock period in nanoseconds")
+# @yang, using 100G U250
+set(FPGA_PART xcu250-figd2104-2L-e CACHE STRING "FPGA part")
+set(DATA_WIDTH 64 CACHE STRING "Width of data path in bytes")
+# @yang, using 322Mhz
+set(CLOCK_PERIOD 3.103 CACHE STRING "Target clock period in nanoseconds")
 
 
 # Find Xilinx Vivado HLS
@@ -43,14 +45,16 @@ endif()
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-#configure_file(${CMAKE_CURRENT_SOURCE_DIR}/echo_server_application_config.hpp.in echo_server_application_config.hpp)
+#configure_file(${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_config.hpp.in mcrouter_config.hpp)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/make.tcl.in make.tcl)
 
 
 set(EXAMPLE_HLS_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/echo_server_application.cpp 
-    ${CMAKE_CURRENT_SOURCE_DIR}/echo_server_application.hpp)
-#    ${CMAKE_CURRENT_SOURCE_DIR}/echo_server_application_config.hpp.in)
+    ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table.hpp)
+#    ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_config.hpp.in)
 
 
 #Setup HLS custom targets

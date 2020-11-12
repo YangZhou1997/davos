@@ -46,6 +46,22 @@ int main()
 
 	int count = 0;
 	int portOpened = -1;
+    
+    // ap_uint<32> tmp = 0xFFFFFFFF;
+    // tmp += 1;
+    // std::cout << std::hex << tmp << std::endl;
+
+    // enum fsmType {START, MIDDLE, END};
+    // static fsmType parser_fsmState[32256];
+    // ap_uint<16> a = 2;
+    // parser_fsmState[2] = MIDDLE;
+    // std::cout << parser_fsmState[a] << std::endl;
+
+    ap_uint<16> a = 0;
+    ap_uint<4> b = 0x1;
+    a(15, 12) = b(3, 0);
+    std::cout << std::hex << a << std::endl;
+
 	while (count < 50)
 	{
 		echo_server_application(	listenPort, listenPortStatus,

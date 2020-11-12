@@ -28,7 +28,9 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************/
 #include "hash_table.hpp"
 
-const ap_uint<MAX_ADDRESS_BITS>  tabulation_table[NUM_TABLES][2][MAX_KEY_SIZE] = {
+// using namespace hls;
+
+const ap_uint<MAX_ADDRESS_BITS> tabulation_table[NUM_TABLES][2][MAX_KEY_SIZE] = {
    #include "tabulation_table.txt"
 };
 

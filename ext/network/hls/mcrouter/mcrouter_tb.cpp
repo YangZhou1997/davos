@@ -26,7 +26,7 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABI
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, 
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, Inc.
 ************************************************/
-#include "echo_server_application.hpp"
+#include "mcrouter.hpp"
 
 int main()
 {
@@ -48,13 +48,13 @@ int main()
 	int portOpened = -1;
 	while (count < 50)
 	{
-		echo_server_application(	listenPort, listenPortStatus,
-									notifications, readRequest,
-									rxMetaData, rxData,
-									openConnection, openConStatus,
-									closeConnection,
-									txMetaData, txData,
-									txStatus);
+		mcrouter(	listenPort, listenPortStatus,
+					notifications, readRequest,
+					rxMetaData, rxData,
+					openConnection, openConStatus,
+					closeConnection,
+					txMetaData, txData,
+					txStatus);
 		if (!listenPort.empty())
 		{
 			ap_uint<16> port = listenPort.read();

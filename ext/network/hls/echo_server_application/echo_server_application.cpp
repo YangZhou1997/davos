@@ -177,7 +177,9 @@ void server(	hls::stream<ap_uint<16> >& rxMetaData,
 
 	ap_uint<16> sessionID;
 	net_axis<64> currWord;
-
+    
+    // this state machine constrains that you must read out all of current message content
+    // before reading next message content. This makes sense, as two AXIS transmissions should not be interleaved. 
 	switch (ksvs_fsmState)
 	{
 	case 0:
