@@ -10,6 +10,7 @@ set_top ${PROJECT_NAME}
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/../axi_utils.cpp
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
+add_files ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 
 add_files -tb ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_tb.cpp
 

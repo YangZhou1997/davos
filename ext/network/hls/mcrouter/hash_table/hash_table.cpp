@@ -199,6 +199,38 @@ htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
 }
 
 template <int K, int V>
+htUpdateResp<K,V> update(htUpdateReq<K,V> request)
+{
+   #pragma HLS INLINE
+
+   htEntry<K,V> currentEntries[NUM_TABLES];
+   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
+   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
+   htUpdateResp<K,V> response;
+   response.op = request.op;
+   response.key = request.key;
+   response.value = request.value;
+   response.source = request.source;
+   response.success = false;
+
+   calculate_hashes(request.key, hashes);
+   //Look for matching key
+   for (int i = 0; i < NUM_TABLES; i++)
+   {
+      #pragma HLS UNROLL
+      currentEntries[i] = cuckooTables[i][hashes[i]];
+      if(currentEntries[i].valid && currentEntries[i].key == request.key)
+      {
+         currentEntries[i].value = request.value;
+         response.success = true;
+      }
+      cuckooTables[i][hashes[i]] = currentEntries[i];
+   }
+
+   return response;
+}
+
+template <int K, int V>
 void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
                hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
@@ -227,9 +259,15 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
          htUpdateResp<K,V> response = insert<K,V>(request, regInsertFailureCount);
          m_axis_upd_rsp.write(response);
       }
-      else //DELETE
+      else if(request.op == KV_DELETE) //DELETE
       {
          htUpdateResp<K,V> response = remove<K,V>(request);
+         m_axis_upd_rsp.write(response);
+      }
+      // @yang, adding a new function to update value locally. 
+      else //UPDATE
+      {
+         htUpdateResp<K,V> response = update<K,V>(request);
          m_axis_upd_rsp.write(response);
       }
    }

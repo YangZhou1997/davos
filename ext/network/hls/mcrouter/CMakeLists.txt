@@ -54,6 +54,8 @@ set(EXAMPLE_HLS_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.hpp)
 #    ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_config.hpp.in)
 
 

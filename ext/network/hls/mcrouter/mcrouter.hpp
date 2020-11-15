@@ -66,6 +66,9 @@ struct msgHeader {
     ap_uint<24*8> output_word(){
         return (cas, opaque, bodyLen, status, dataType, extLen, keyLen, opcode, magic);
     }
+    ap_uint<32> val_len(){
+        return bodyLen-extLen-keyLen;
+    }
 }
 
 #define KV_MAX_EXT_SIZE (5*8)
@@ -110,7 +113,20 @@ struct sessionState {
     ap_uint<16>			currKeyLen;
     ap_uint<32>			currValLen;
     ap_uint<2>          parsingBody; // indicating whether parsing ext/key/val is done. 
-    sessionState (): {}
+    sessionState(): {}
+};
+
+struct reqContext {
+    ap_uint<16> numRsp;
+    ap_uint<16> srcSessionID;
+    reqContext() : {}
+    void consume_word(ap_uint<32>& w){
+        numRsp = w(31, 16);
+        srcSessionID = w(15, 0);
+    }
+    ap_uint<32> output_word(){
+        return (srcSessionID, numRsp);
+    }
 };
 
 /** @defgroup mcrouter Echo Server Application

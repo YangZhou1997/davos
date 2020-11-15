@@ -29,6 +29,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 
 #include "mcrouter.hpp"
 #include "hash_table/hash_table.hpp"
+#include "multi_queue/multi_queue.hpp"
 
 #define DATA_WIDTH 512
 
@@ -128,7 +129,7 @@ void notification_handler(	hls::stream<appNotification>&	notific, // input from 
         }
 	}
 }
-// generating globally unique reqID. 
+// generating globally unique msgID. 
 static ap_uint<32> currentMsgID = 0;
 #define MAX_SESSION_NUM ((1 << 16) - 1)
 
@@ -176,7 +177,7 @@ void extract_msg(
                     currMsgBody.consume_word(response.value);
                 }
                 else{
-                    s_axis_upd_req.write(htUpdateReq<16, 1024>(KV_INSERT, sessionID, currMsgBody, 0));
+                    s_axis_upd_req.write(htUpdateReq<16, 1024>(KV_INSERT, sessionID, currMsgBody.output_word(), 0));
                 }
                 // we should expect the hash table is enough to handle all active connections; 
                 currMsgState = AXIS_ONGOING;
@@ -286,7 +287,7 @@ void extract_msg(
                     // In the end of each AXIS, store sessionState and currMsgBody back. 
                     // msgHeader already written out or can be recovered from sessionStateTable. 
                     sessionStateTable[sessionID] = currSessionState;
-                    s_axis_upd_req.write(htUpdateReq<16, 1024>(KV_INSERT, sessionID, currMsgBody, 0));
+                    s_axis_upd_req.write(htUpdateReq<16, 1024>(KV_INSERT, sessionID, currMsgBody.output_word(), 0));
                     // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
                     // TODO: or store currMsgBody in URAM. 
                 }
@@ -317,14 +318,20 @@ void simple_hash(
 }
 
 void proxy(
-        hls::stream<ap_uint<16> >& sessionIdFifo, // input
-        hls::stream<msgHeader>& msgHeaderFifo, // input
-        hls::stream<msgBody>& msgBodyFifo, // input
-        hls::stream<ap_uint<16> >& sessionIdFifo_dst, // output
-        hls::stream<msgHeader>& msgHeaderFifo_dst, // output
-        hls::stream<msgBody>& msgBodyFifo_dst, // output
+        hls::stream<ap_uint<16> >&              sessionIdFifo, // input
+        hls::stream<msgHeader>&                 msgHeaderFifo, // input
+        hls::stream<msgBody>&                   msgBodyFifo, // input
+        hls::stream<ap_uint<16> >&              sessionIdFifo_dst, // output
+        hls::stream<msgHeader>&                 msgHeaderFifo_dst, // output
+        hls::stream<msgBody>&                   msgBodyFifo_dst, // output
         hls::stream<ap_uint<KV_MAX_KEY_SIZE> >& keyFifo, 
-        hls::stream<ap_uint<32> >& hashFifo
+        hls::stream<ap_uint<32> >&              hashFifo,
+        hls::stream<mqInsertReq<ap_uint<32>> >& multiQueue_push, 
+        hls::stream<mqPopReq>&				    multiQueue_pop_req, 
+        hls::stream<TestValue>&				    multiQueue_rsp,
+        hls::stream<htLookupReq<32> >&          s_axis_lup_req, 
+        hls::stream<htUpdateReq<32,32> >&       s_axis_upd_req, 
+        hls::stream<htLookupResp<32,32> >&      m_axis_lup_rsp
         )
 {
 #pragma HLS PIPELINE II=1
@@ -342,6 +349,17 @@ void proxy(
     #pragma HLS stream variable=tmpMsgHeaderFifo depth=64
     #pragma HLS stream variable=tmpMsgBodyFifo depth=64
 
+	static hls::stream<ap_uint<16> >		tmpSessionIdFifo1("tmpSessionIdFifo1");
+    static hls::stream<msgHeader>		    tmpMsgHeaderFifo1("tmpMsgHeaderFifo1");
+	static hls::stream<msgBody>		        tmpMsgBodyFifo1("tmpMsgBodyFifo1");
+    #pragma HLS stream variable=tmpSessionIdFifo1 depth=64
+    #pragma HLS stream variable=tmpMsgHeaderFifo1 depth=64
+    #pragma HLS stream variable=tmpMsgBodyFifo1 depth=64
+
+	mqInsertReq<reqContext> insertReq;
+    ap_uint<32> srcMsgID;
+    reqContext currReqContext;
+
     if(!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty()){
         sessionIdFifo.read(currSessionID);
         msgHeaderFifo.read(currMsgHeader);
@@ -357,24 +375,37 @@ void proxy(
             }
             case 0x01: { // SET -> sets all memcached
                 for (int i = 0; i < currSessionNum; i++){
+                    // #pragma HLS unroll
                     ap_uint<16> sessionID_dst = connectedSessions[(i];
                     sessionIdFifo_dst.write(sessionID_dst);
                     msgHeaderFifo_dst.write(currMsgHeader);
-                    msgBodyFifo_dst.write(currMsgBody);            
+                    msgBodyFifo_dst.write(currMsgBody);     
+                    // push this request context into multiqueue.
+                    insertReq.key = sessionID_dst;
+                    insertReq.value = currMsgBody.msgID;
+        			multiQueue_push.write(insertReq);
                 }
+                currReqContext = reqContext(currSessionNum, currSessionID);
+                s_axis_upd_req.write(htUpdateReq<32, 32>(KV_INSERT, currMsgBody.msgID, currReqContext.output_word(), 0));
                 break;
             }
             case 0x30: { // RGET
-                
+				multiQueue_pop_req.write(mqPopReq(POP, currSessionID));
+                tmpSessionIdFifo1.write(currSessionID);
+                tmpMsgHeaderFifo1.write(currMsgHeader);
+                tmpMsgBodyFifo1.write(currMsgBody);
                 break;
             }
             case 0x31: { // RSet
-
+				multiQueue_pop_req.write(mqPopReq(POP, currSessionID));
+                tmpSessionIdFifo1.write(currSessionID);
+                tmpMsgHeaderFifo1.write(currMsgHeader);
+                tmpMsgBodyFifo1.write(currMsgBody);
                 break;
             }
-
         }
     }
+    // GET request hashing done. 
     else if(!hashFifo.empty() && !tmpSessionIdFifo.empty() && !tmpMsgHeaderFifo.empty() && !tmpMsgBodyFifo.empty()){
         hashFifo.read(currHashVal);
         tmpSessionIdFifo.read(currSessionID);
@@ -384,9 +415,44 @@ void proxy(
         sessionIdFifo_dst.write(sessionID_dst);
         msgHeaderFifo_dst.write(currMsgHeader);
         msgBodyFifo_dst.write(currMsgBody);
+        // push this request context into multiqueue.
+        insertReq.key = sessionID_dst;
+        insertReq.value = currMsgBody.msgID;
+		multiQueue_push.write(insertReq);
+        currReqContext = reqContext(1, currSessionID);
+        s_axis_upd_req.write(htUpdateReq<32, 32>(KV_INSERT, currMsgBody.msgID, currReqContext.output_word(), 0));
     }
-
-
+    // RGET and RSET queue pop done; start recover req context from hash table.  
+	else if(!multiQueue_rsp.empty())
+	{
+		multiQueue_rsp.read(srcMsgID);
+        s_axis_lup_req.write(htLookupReq<32>(srcMsgID, 0));
+    }
+    // get req context from hash table. 
+    else if(!m_axis_lup_rsp.empty() && !tmpSessionIdFifo1.empty() && !tmpMsgHeaderFifo1.empty() && !tmpMsgBodyFifo1.empty()){
+        htLookupResp<32, 32> response = m_axis_lup_rsp.read();
+        tmpSessionIdFifo1.read(currSessionID);
+        tmpMsgHeaderFifo1.read(currMsgHeader);
+        tmpMsgBodyFifo1.read(currMsgBody);
+        
+        currReqContext.consume_word(responce.value);
+        // TODO: handle hash lookup. 
+        ap_uint<16> numRsp = currReqContext.numRsp;
+        ap_uint<16> srcSessionID = currReqContext.srcSessionID;
+        
+        if(numRsp == 1){ // finished. 
+            currReqContext = reqContext(numRsp-1, srcSessionID);
+            s_axis_upd_req.write(htUpdateReq<32, 32>(KV_DELETE, currMsgBody.msgID, currReqContext.output_word(), 0));
+            sessionIdFifo_dst.write(srcSessionID);
+            msgHeaderFifo_dst.write(currMsgHeader);
+            msgBodyFifo_dst.write(currMsgBody);
+        }
+        else{
+            // update hash table numRsp; 
+            currReqContext = reqContext(numRsp-1, srcSessionID);
+            s_axis_upd_req.write(htUpdateReq<32, 32>(KV_UPDATE, currMsgBody.msgID, currReqContext.output_word(), 0));
+        }
+    }
 }
 
 void deparser(
@@ -396,44 +462,63 @@ void deparser(
 		hls::stream<appTxMeta>& txMetaData, 
         hls::stream<net_axis<DATA_WIDTH> >& txData)
 {
-	ap_uint<16> sessionID;
+	ap_uint<16> currSessionID;
     msgHeader currMsgHeader;
     msgBody currMsgBody;
-
-    static ap_uint<1> esac_fsmState = 0;
 	net_axis<DATA_WIDTH> currWord;
 
-    if(!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty()){
-        sessionIdFifo.read(currSessionID);
-        msgHeaderFifo.read(currMsgHeader);
-        msgBodyFifo.read(currMsgBody);
+#define SENDBUF_LEN (24*8+KV_MAX_EXT_SIZE+KV_MAX_KEY_SIZE+KV_MAX_VAL_SIZE)
+    static ap_uint<SENDBUF_LEN> sendBuf;
+    static ap_uint<16> totalSendLen;
+    static ap_uint<16> currSendLen;
+    static ap_uint<1> esac_fsmState = 0;
 
-    	switch (esac_fsmState)
-    	{
-    	case 0:
-    		if (!txMetaData.full())
-    		{
-    			txMetaData.write(appTxMeta(reqSessionID, length));
-    			esac_fsmState = 1;
-    		}
-    		break;
-    	case 1:
-    		if (!txData.full())
-    		{
+	switch (esac_fsmState)
+	{
+	case 0:
+		if (!txMetaData.full() && !sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
+		{
+            sessionIdFifo.read(currSessionID);
+            msgHeaderFifo.read(currMsgHeader);
+            msgBodyFifo.read(currMsgBody);
+            totalSendLen += 24*8+currMsgHeader.bodyLen*8;
+            currSendLen = 0;
+            sendBuf(SENDBUF_LEN-1,SENDBUF_LEN-24*8) = currMsgHeader.output_word();
+            sendBuf(SENDBUF_LEN-24*8-1,SENDBUF_LEN-24*8-currMsgHeader.extLen*8) = currMsgBody.ext(KV_MAX_EXT_SIZE-1,KV_MAX_EXT_SIZE-currMsgHeader.extLen*8);
+            sendBuf(SENDBUF_LEN-24*8-currMsgHeader.extLen*8-1,SENDBUF_LEN-24*8-currMsgHeader.extLen*8-currMsgHeader.keyLen*8) = currMsgBody.key(KV_MAX_KEY_SIZE-1,KV_MAX_KEY_SIZE-currMsgHeader.keyLen*8);
+            sendBuf(SENDBUF_LEN-24*8-currMsgHeader.extLen*8-currMsgHeader.keyLen*8-1,SENDBUF_LEN-24*8-currMsgHeader.extLen*8-currMsgHeader.keyLen*8-currMsgHeader.valLen*8) = currMsgBody.key(KV_MAX_VAL_SIZE-1,KV_MAX_VAL_SIZE-currMsgHeader.valLen*8);
+			txMetaData.write(appTxMeta(currSessionID, totalSendLen));
+			esac_fsmState = 1;
+		}
+		break;
+	case 1:
+		if (!txData.full())
+		{
+            ap_uint<16> remainLen = totalSendLen - currSendLen;
+            if(remainLen > DATA_WIDTH){
+                currWord.data = sendBuf(SENDBUF_LEN-currSendLen-1, SENDBUF_LEN-currSendLen-DATA_WIDTH);
+                currWord.keep = lenToKeep(DATA_WIDTH/8);
+                currSendLen += DATA_WIDTH;
     			txData.write(currWord);
-    			if (true)
-    			{
-    				esac_fsmState = 0;
-    			}
-    		}
-    		break;
-    	}
-    }
+            }
+            else{
+                currWord.data = sendBuf(SENDBUF_LEN-currSendLen-1, 0);
+                currWord.keep = lenToKeep(remainLen/8);
+                currWord.last = 1;
+                currSendLen += remainLen;
+    			txData.write(currWord);
+				esac_fsmState = 0;
+            }
+		}
+		break;
+	}
+
 }
 
 void dummy(	hls::stream<ap_uint<16> >& closeConnection,
 			hls::stream<appTxRsp>& txStatus,
             hls::stream<htUpdateResp<16,1024> >   m_axis_upd_rsp
+            hls::stream<htUpdateResp<32,32> >     m_axis_upd_rsp1
             )
 {
 #pragma HLS PIPELINE II=1
@@ -446,6 +531,13 @@ void dummy(	hls::stream<ap_uint<16> >& closeConnection,
     
     if(!m_axis_upd_rsp.empty()){
         htUpdateResp<64,16> response = m_axis_upd_rsp.read();
+        if (!response.success){
+            std::cerr << "[ERROR] insert failed" << std::endl;
+        }
+    }
+ 
+    if(!m_axis_upd_rsp1.empty()){
+        htUpdateResp<64,16> response = m_axis_upd_rsp1.read();
         if (!response.success){
             std::cerr << "[ERROR] insert failed" << std::endl;
         }
@@ -542,8 +634,39 @@ void mcrouter(	// for mcrouter listening on a TCP port
     #pragma HLS DATA_PACK variable=m_axis_upd_rsp
     #pragma HLS INTERFACE ap_stable port=regInsertFailureCount
 
+
+    static hls::stream<htLookupReq<32> >         s_axis_lup_req1;
+    static hls::stream<htUpdateReq<32,32> >    s_axis_upd_req1;
+    static hls::stream<htLookupResp<32,32> >   m_axis_lup_rsp1;
+    static hls::stream<htUpdateResp<32,32> >   m_axis_upd_rsp1;
+    static ap_uint<16> regInsertFailureCount1;
+    #pragma HLS stream variable=s_axis_lup_req1 depth=64
+    #pragma HLS stream variable=s_axis_upd_req1 depth=64
+    #pragma HLS stream variable=m_axis_lup_rsp1 depth=64
+    #pragma HLS stream variable=m_axis_upd_rsp1 depth=64
+    #pragma HLS DATA_PACK variable=s_axis_lup_req1
+    #pragma HLS DATA_PACK variable=s_axis_upd_req1
+    #pragma HLS DATA_PACK variable=m_axis_lup_rsp1
+    #pragma HLS DATA_PACK variable=m_axis_upd_rsp1
+    #pragma HLS INTERFACE ap_stable port=regInsertFailureCount1
+
+	static hls::stream<mqInsertReq<ap_uint<32>> >	multiQueue_push("multiQueue_push");
+	static hls::stream<mqPopReq>					multiQueue_pop_req("multiQueue_pop_req");
+	static hls::stream<TestValue>					multiQueue_rsp("multiQueue_rsp");
+    #pragma HLS stream variable=multiQueue_push depth=64
+    #pragma HLS stream variable=multiQueue_pop_req depth=64
+    #pragma HLS stream variable=multiQueue_rsp depth=64
+    #pragma HLS DATA_PACK variable=multiQueue_push
+    #pragma HLS DATA_PACK variable=multiQueue_pop_req
+    #pragma HLS DATA_PACK variable=multiQueue_rsp
+    
+
     // initing a hash table block
     hash_table<16, 1024>(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
+    hash_table<32, 32>(s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1, regInsertFailureCount1);
+
+    // initing a multi queue block
+    multi_queue<reqContext, MAX_CONNECTED_SESSIONS, MAX_CONNECTED_SESSIONS*16>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
 
     // opening the mcrouter listening port
 	open_port(listenPort, listenPortStatus);
@@ -555,18 +678,21 @@ void mcrouter(	// for mcrouter listening on a TCP port
 	notification_handler(notifications, readRequest);
     
     // read data from network and parse them into reqFifo
-    extract_msg(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp);
+    extract_msg(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, \
+            s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp);
 
     // simple hash function 
     simple_hash(mc_keyFifo, mc_hashFifo);
 
 	// 1) read request from fifo, determine the destination mc, query mc
     // 2) read response from fifo, forward response to client. 
-    proxy(mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1);
+    proxy(mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, \
+            mc_keyFifo, mc_hashFifo, multiQueue_push, multiQueue_pop_req, multiQueue_rsp \
+            s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1);
 
     // deparsing the res and resp, sending to destination (client or memcached)
     deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData);
 
-	dummy(closeConnection, txStatus, m_axis_upd_rsp);
+	dummy(closeConnection, txStatus, m_axis_upd_rsp, m_axis_upd_rsp1);
 
 }
