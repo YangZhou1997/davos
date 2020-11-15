@@ -30,113 +30,88 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 #include "../axi_utils.hpp"
 #include "../toe/toe.hpp"
 
+struct msgHeader {
+    ap_uint<8> magic;
+    ap_uint<8> opcode;
+    ap_uint<16> keyLen;
+    ap_uint<8> extLen;
+    ap_uint<8> dataType;
+    ap_uint<16> status;
+    ap_uint<32> bodyLen;
+    ap_uint<32> opaque;
+    ap_uint<64> cas;
+    msgHeader() : 
+        magic(0),
+        opcode(0),
+        keyLen(0),
+        extLen(0),
+        dataType(0),
+        dataType(0),
+        status(0),
+        bodyLen(0),
+        opaque(0),
+        cas(0)
+    {}
+    void consume_word(ap_uint<24*8>& w){
+        magic = w(191, 184);
+        opcode = w(183, 176);
+        keyLen = w(175, 160);
+        extLen = w(159, 152);
+        dataType = w(151, 144);
+        status = w(143, 128);
+        bodyLen = w(127, 96);
+        opaque = w(95, 64);
+        cas = w(63, 0);
+    }
+    ap_uint<24*8> output_word(){
+        return (cas, opaque, bodyLen, status, dataType, extLen, keyLen, opcode, magic);
+    }
+}
+
+#define KV_MAX_EXT_SIZE (5*8)
 #define KV_MAX_KEY_SIZE (40*8)
-#define KV_MAX_VAL_SIZE (1024-32-8-16*2-48-1-32*2-48-1-40*8)
+#define KV_MAX_VAL_SIZE (1024-179-KV_MAX_EXT_SIZE-KV_MAX_KEY_SIZE)
 
-// https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#get-get-quietly-get-key-get-key-quietly
-#define GET_OPCODE 0x00
-#define SET_OPCODE 0x01
-#define GET_RESP_OPCODE 0x02
-#define SET_RESP_OPCODE 0x03
-
-struct kvReq {
-	ap_uint<32>         reqID;  // globally unique reqID
-    ap_uint<8>          opcode; // indicating the operation type
-    ap_uint<16>			keyLen; // key length in byte; memcached support up to 250 by default
-	ap_uint<16>			currKeyLen;
-    ap_uint<48>			keyPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<1>          keyInl; // indicating if key is stored inline. 
-    ap_uint<32>         valLen; // val length in byte
-	ap_uint<32>			currValLen;
-    ap_uint<48>         valPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<1>          valInl; // indicating if val is stored inline.
-    ap_uint<KV_MAX_KEY_SIZE>   key;
-    ap_uint<KV_MAX_VAL_SIZE>   val;
-    kvReq() :
-        reqID  (0),
-        opcode (0),
-        keyLen (0),
-        currKeyLen (0),
-        keyPtr (0),
-        keyInl (0),
-        valLen (0),
-        currValLen (0),
-        valPtr (0),
-        valInl (0),
-        key (0),
-        val (0)
-    {}
-    kvReq(const ap_uint<1024>& d) :
-        reqID  (d( 31,  0)),
-        opcode(d( 39, 32)),
-        keyLen (d( 55, 40)),
-        currKeyLen (d( 71, 56)),
-        keyPtr (d( 119, 72)),
-        keyInl (d( 120, 120)),
-        valLen (d( 152, 121)),
-        currValLen (d( 184, 153)),
-        valPtr (d( 232, 185)),
-        valInl (d( 233, 233)),
-        key (d( 553, 234)),
-        val (d( 1023, 554))
-    {} 
-
-    ap_uint<1024> toBits()
-    {
-        return (val, key, valInl, valPtr, currValLen, valLen, keyInl, keyPtr, currKeyLen, keyLen, opcode, reqID);
+struct msgBody {
+	ap_uint<32>                 msgID;  // globally unique msgID
+    ap_uint<1>                  extInl; // indicating if extra data is stored inline.
+    ap_uint<1>                  keyInl; // indicating if key is stored inline. 
+    ap_uint<1>                  valInl; // indicating if val is stored inline.
+    ap_uint<48>                 extPtr; // ptr to the memory region managed by slab memory allocator
+    ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
+    ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
+    ap_uint<KV_MAX_EXT_SIZE>    ext;
+    ap_uint<KV_MAX_KEY_SIZE>    key;
+    ap_uint<KV_MAX_VAL_SIZE>    val;
+    msg() {}
+    void consume_word(ap_uint<1024>& w){
+        msgID = w(1023, 992);
+        extInl = w(991, 991);
+        keyInl = w(990, 990);
+        valInl = w(989, 989);
+        extPtr = w(988, 941);
+        keyPtr = w(940, 893);
+        valPtr = w(892, 845);
+        ext = w(844, 805);
+        key = w(804, 485);
+        val = w(484, 0);
     }
-};
-
-struct kvResp
-{
-	ap_uint<32>         respID;  // globally unique respID
-    ap_uint<8>          opcode; // indicating the operation type
-    ap_uint<16>			keyLen; // key length in byte; memcached support up to 250 by default
-	ap_uint<16>			currKeyLen;
-	ap_uint<48>			keyPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<1>          keyInl; // indicating if key is stored inline. 
-    ap_uint<32>         valLen; // val length in byte
-	ap_uint<32>			currValLen;
-    ap_uint<48>         valPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<1>          valInl; // indicating if val is stored inline.
-    ap_uint<KV_MAX_KEY_SIZE>   key;
-    ap_uint<KV_MAX_VAL_SIZE>   val;
-    
-    kvResp() :
-        respID  (0),
-        opcode (0),
-        keyLen (0),
-        currKeyLen (0),
-        keyPtr (0),
-        keyInl (0),
-        valLen (0),
-        currValLen (0),
-        valPtr (0),
-        valInl (0),
-        key (0),
-        val (0)
-    {}
-    kvResp(const ap_uint<1024>& d) :
-        respID  (d( 31,  0)),
-        opcode(d( 39, 32)),
-        keyLen (d( 55, 40)),
-        currKeyLen (d( 71, 56)),
-        keyPtr (d( 119, 72)),
-        keyInl (d( 120, 120)),
-        valLen (d( 152, 121)),
-        currValLen (d( 184, 153)),
-        valPtr (d( 232, 185)),
-        valInl (d( 233, 233)),
-        key (d( 553, 234)),
-        val (d( 1023, 554))
-    {} 
-
-    ap_uint<1024> toBits()
-    {
-        return (val, key, valInl, valPtr, currValLen, valLen, keyInl, keyPtr, currKeyLen, keyLen, opcode, respID);
+    ap_uint<1024> output_word(){
+        return (val, key, ext, valPtr, keyPtr, extPtr, valInl, keyInl, extInl, msgID);
     }
-};
+}
 
+struct sessionState {
+    ap_uint<24*8>   msgHeaderBuff; // assembling buffer for memcached message header 
+    ap_uint<5>      currLen; // current len of value msg header. 
+    ap_uint<1>      parsingHeader; // indicate whether parsing header is done
+    // 
+    ap_uint<8>			currExtLen;
+    ap_uint<16>			currKeyLen;
+    ap_uint<32>			currValLen;
+    ap_uint<2>          parsingBody; // indicating whether parsing ext/key/val is done. 
+    sessionState (): {}
+};
 
 /** @defgroup mcrouter Echo Server Application
  *

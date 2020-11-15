@@ -49,7 +49,7 @@ void calculate_hashes(ap_uint<KEY_SIZE> key, ap_uint<TABLE_ADDRESS_BITS>   hashe
       {
          #pragma HLS UNROLL
          ap_uint<MAX_ADDRESS_BITS> randomValue = tabulation_table[i][key[k]][k];
-         hash ^= randomValue(TABLE_ADDRESS_BITS-1, 0); //@yang, .range()
+         hash ^= randomValue(TABLE_ADDRESS_BITS-1, 0); 
       }
       hashes[i] = hash;
    }
