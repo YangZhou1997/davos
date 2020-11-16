@@ -26,9 +26,10 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABI
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************/
-#include "hash_table.hpp"
+#include "hash_table_16_1024.hpp"
 
 // using namespace hls;
+namespace hash_table_16_1024 {
 
 const ap_uint<MAX_ADDRESS_BITS> tabulation_table[NUM_TABLES][2][MAX_KEY_SIZE] = {
    #include "tabulation_table.txt"
@@ -236,7 +237,6 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
                hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
                ap_uint<16>&                        regInsertFailureCount)
-
 {
    #pragma HLS INLINE
 
@@ -273,27 +273,13 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
    }
 }
 
-void hash_table_top( hls::stream<htLookupReq<KEY_SIZE> >&               s_axis_lup_req,
-                     hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&    s_axis_upd_req,
-                     hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&   m_axis_lup_rsp,
-                     hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&   m_axis_upd_rsp,
-                     ap_uint<16>&                                       regInsertFailureCount)
+void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
+               hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
+               hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
+               hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
+               ap_uint<16>&                        regInsertFailureCount)
 {
-#pragma HLS INTERFACE ap_ctrl_none port=return
+    hash_table<KEY_SIZE, VALUE_SIZE>(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
+}
 
-#pragma HLS INTERFACE axis register port=s_axis_lup_req
-#pragma HLS INTERFACE axis register port=s_axis_upd_req
-#pragma HLS INTERFACE axis register port=m_axis_lup_rsp
-#pragma HLS INTERFACE axis register port=m_axis_upd_rsp
-#pragma HLS DATA_PACK variable=s_axis_lup_req
-#pragma HLS DATA_PACK variable=s_axis_upd_req
-#pragma HLS DATA_PACK variable=m_axis_lup_rsp
-#pragma HLS DATA_PACK variable=m_axis_upd_rsp
-#pragma HLS INTERFACE ap_stable port=regInsertFailureCount
-
-   hash_table<KEY_SIZE, VALUE_SIZE>(s_axis_lup_req,
-                                    s_axis_upd_req,
-                                    m_axis_lup_rsp,
-                                    m_axis_upd_rsp,
-                                    regInsertFailureCount);
 }

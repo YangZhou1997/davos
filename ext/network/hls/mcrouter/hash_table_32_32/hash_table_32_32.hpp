@@ -29,6 +29,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 #include "../../axi_utils.hpp"
 // #include <hash_table_config.hpp>
+namespace hash_table_32_32 {
+
 const uint32_t MAX_NUMBER_OF_ENTRIES = 1000;
 #include <math.h>
 
@@ -44,8 +46,8 @@ const uint32_t NUM_TABLES = 9;
 const uint32_t TABLE_ADDRESS_BITS = ConstLog2(MAX_NUMBER_OF_ENTRIES/(NUM_TABLES-1));
 const uint32_t TABLE_SIZE = (1 << TABLE_ADDRESS_BITS);
 
-const uint32_t KEY_SIZE = 16;
-const uint32_t VALUE_SIZE = 1024;
+const uint32_t KEY_SIZE = 32;
+const uint32_t VALUE_SIZE = 32;
 const uint32_t MAX_TRIALS = 12;
 
 //The hash table can easily support NUM_TABLES-1 * TABLE_SIZE
@@ -114,8 +116,10 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
                ap_uint<16>&                        regInsertFailureCount);
 
-void hash_table_top( hls::stream<htLookupReq<KEY_SIZE> >&               s_axis_lup_req,
-                     hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&    s_axis_upd_req,
-                     hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&   m_axis_lup_rsp,
-                     hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&   m_axis_upd_rsp,
-                     ap_uint<16>&                                       regInsertFailureCount);
+void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
+               hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
+               hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
+               hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
+               ap_uint<16>&                        regInsertFailureCount);
+
+}
