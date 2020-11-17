@@ -114,12 +114,12 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
                hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
                hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
-               ap_uint<16>&                        regInsertFailureCount);
+               hls::stream<ap_uint<16> >&          regInsertFailureCount);
 
 void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
                hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
                hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
-               ap_uint<16>&                        regInsertFailureCount);
+               hls::stream<ap_uint<16> >&                        regInsertFailureCount);
 
 }

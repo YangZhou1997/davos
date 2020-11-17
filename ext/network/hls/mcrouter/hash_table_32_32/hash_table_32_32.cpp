@@ -39,6 +39,7 @@ static htEntry<KEY_SIZE, VALUE_SIZE> cuckooTables[NUM_TABLES][TABLE_SIZE];
 
 void calculate_hashes(ap_uint<KEY_SIZE> key, ap_uint<TABLE_ADDRESS_BITS>   hashes[NUM_TABLES])
 {
+#pragma HLS INLINE
 #pragma HLS ARRAY_PARTITION variable=hashes complete dim=1
 
    for (int i = 0; i < NUM_TABLES; i++)
@@ -59,7 +60,7 @@ void calculate_hashes(ap_uint<KEY_SIZE> key, ap_uint<TABLE_ADDRESS_BITS>   hashe
 template <int K, int V>
 htLookupResp<K,V> lookup(htLookupReq<K> request)
 {
-   #pragma HLS INLINE
+#pragma HLS INLINE
    
    htEntry<K,V> currentEntries[NUM_TABLES];
    #pragma HLS ARRAY_PARTITION variable=currentEntries complete
@@ -94,9 +95,9 @@ htLookupResp<K,V> lookup(htLookupReq<K> request)
 
 template <int K, int V>
 htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
-                     ap_uint<16>& regInsertFailureCount)
+                     hls::stream<ap_uint<16> >& regInsertFailureCount)
 {
-   #pragma HLS INLINE
+#pragma HLS INLINE
 
    htEntry<K,V> currentEntries[NUM_TABLES];
    #pragma HLS ARRAY_PARTITION variable=currentEntries complete
@@ -111,7 +112,7 @@ htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
    response.success = false;
    static uint16_t insertFailureCounter = 0;
 
-   regInsertFailureCount = insertFailureCounter;
+//    regInsertFailureCount = insertFailureCounter;
 
    htEntry<K,V> currentEntry(request.key, request.value);
    victimIdx = 0;
@@ -163,6 +164,7 @@ htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
    {
       std::cout << "REACHED MAX TRIALS: " << request.key << " " << currentEntry.key << std::endl;
       insertFailureCounter++;
+      regInsertFailureCount.write(insertFailureCounter);
    }
    return response;
 }
@@ -170,7 +172,7 @@ htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
 template <int K, int V>
 htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
 {
-   #pragma HLS INLINE
+#pragma HLS INLINE
 
    htEntry<K,V> currentEntries[NUM_TABLES];
    #pragma HLS ARRAY_PARTITION variable=currentEntries complete
@@ -202,7 +204,7 @@ htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
 template <int K, int V>
 htUpdateResp<K,V> update(htUpdateReq<K,V> request)
 {
-   #pragma HLS INLINE
+#pragma HLS INLINE
 
    htEntry<K,V> currentEntries[NUM_TABLES];
    #pragma HLS ARRAY_PARTITION variable=currentEntries complete
@@ -236,9 +238,11 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
                hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
                hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
-               ap_uint<16>&                        regInsertFailureCount)
+               hls::stream<ap_uint<16> >&                        regInsertFailureCount)
 {
-   #pragma HLS INLINE
+// #pragma HLS PIPELINE II=1
+// #pragma HLS INLINE off
+#pragma HLS INLINE
 
    //Global arrays
    #pragma HLS ARRAY_PARTITION variable=tabulation_table complete dim=1
@@ -277,8 +281,10 @@ void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
                hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
                hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
-               ap_uint<16>&                        regInsertFailureCount)
+               hls::stream<ap_uint<16> >&                        regInsertFailureCount)
 {
+// #pragma HLS PIPELINE II=1
+#pragma HLS INLINE
     hash_table<KEY_SIZE, VALUE_SIZE>(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
 }
 

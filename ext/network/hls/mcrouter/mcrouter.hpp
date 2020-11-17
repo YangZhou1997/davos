@@ -113,11 +113,11 @@ struct sessionState {
     sessionState() {}
 };
 
-struct reqContext {
+struct msgContext {
     ap_uint<16> numRsp;
     ap_uint<16> srcSessionID;
-    reqContext() {}
-    reqContext(ap_uint<16> _numRsp, ap_uint<16> _srcSessionID) :
+    msgContext() {}
+    msgContext(ap_uint<16> _numRsp, ap_uint<16> _srcSessionID) :
         numRsp(_numRsp), 
         srcSessionID(_srcSessionID)
     {}
@@ -129,6 +129,16 @@ struct reqContext {
         return (srcSessionID, numRsp);
     }
 };
+
+// enum healthCmdType {GET_SESSION_COUNT, GET_SESSIONID_HASH, GET_SESSIONID_IDX};
+
+// struct healthReq {
+//     healthCmdType cmd;
+//     ap_uint<16> val;
+//     healthReq() {}
+//     healthReq(healthCmdType _cmd, ap_uint<16> _val): 
+//         cmd(_cmd), val(_val) {}
+// };
 
 /** @defgroup mcrouter Echo Server Application
  *
