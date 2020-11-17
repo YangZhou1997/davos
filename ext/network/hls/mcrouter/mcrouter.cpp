@@ -373,7 +373,7 @@ void proxy(
     hls::stream<ap_uint<16> >& idxFifo,
 	hls::stream<ap_uint<16> >& sessionIdFifo3
 ){
-#pragma HLS PIPELINE II=1
+#pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
 
 	static ap_uint<16> currSessionID;
@@ -601,8 +601,8 @@ void deparser(
         // sendBuf = (hdr, ext(KV_MAX_EXT_SIZE-1, KV_MAX_EXT_SIZE-extLen), key(KV_MAX_KEY_SIZE-1, KV_MAX_KEY_SIZE-keyLen), val(KV_MAX_VAL_SIZE-1, KV_MAX_VAL_SIZE-valLen) );
     case 1: 
         if(extLen != 0){
-            loc0 = loc1;
-            loc1 -= extLen*8;
+            loc0 = loc1-1;
+            loc1 -= extLen;
             esac_fsmState = 2;
         }
         else{
@@ -610,13 +610,13 @@ void deparser(
         }
         break;
     case 2: 
-        sendBuf(loc0, loc1) = ext;
+        sendBuf(loc0, loc1) = ext(KV_MAX_EXT_SIZE-1,KV_MAX_EXT_SIZE-extLen);
         esac_fsmState = 3;
         break;
     case 3:
         if(keyLen != 0){
-            loc0 = loc1;
-            loc1 -= keyLen*8;
+            loc0 = loc1-1;
+            loc1 -= keyLen;
             esac_fsmState = 4;
         }
         else{
@@ -624,13 +624,13 @@ void deparser(
         }
         break;
     case 4:
-        sendBuf(loc0, loc1) = key;
+        sendBuf(loc0, loc1) = key(KV_MAX_KEY_SIZE-1,KV_MAX_KEY_SIZE-keyLen);
         esac_fsmState = 5;
         break;
     case 5: 
         if(valLen != 0){
-            loc0 = loc1;
-            loc1 -= valLen*8;
+            loc0 = loc1-1;
+            loc1 -= valLen;
             esac_fsmState = 6;
         }
         else{
@@ -638,7 +638,7 @@ void deparser(
         }
         break;
     case 6: 
-        sendBuf(loc0, loc1) = val;
+        sendBuf(loc0, loc1) = val(KV_MAX_VAL_SIZE-1,KV_MAX_VAL_SIZE-valLen);
         esac_fsmState = 7;
         break;
     case 7:
