@@ -176,7 +176,7 @@ void extract_msg(
     hls::stream<hash_table_16_1024::htUpdateReq<16,1024> >&    s_axis_upd_req, 
     hls::stream<hash_table_16_1024::htLookupResp<16,1024> >&   m_axis_lup_rsp
 ){
-#pragma HLS PIPELINE II=1
+#pragma HLS PIPELINE II=3
 #pragma HLS INLINE off
 
     // static value gets inited to zero by default. 
@@ -184,146 +184,155 @@ void extract_msg(
     #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
 
-    enum axisFsmType {IDLE, STATE_RECOVER, AXIS_ONGOING};
+    enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
     static axisFsmType currAxisState = IDLE;
 
-	static ap_uint<16>  sessionID; // valid when currAxisState becomes on-going
-    static sessionState currSessionState; // valid when currAxisState becomes on-going
+	static ap_uint<16>      currSessionID; // valid when currAxisState becomes on-going
+    static sessionState     currSessionState; // valid when currAxisState becomes on-going
     static msgBody          currMsgBody;
+    static msgHeader        currMsgHeader;
+	static net_axis<DATA_WIDTH> currWord;
+    static ap_uint<8>       currValidLen;
+    
 
     switch (currAxisState){
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
-                rxMetaData.read(sessionID);
-                currSessionState = sessionStateTable[sessionID];
-                currAxisState = AXIS_ONGOING;
+                rxMetaData.read(currSessionID);
+                currSessionState = sessionStateTable[currSessionID];
+                currAxisState = READ_WORD;
 
-                s_axis_lup_req.write(hash_table_16_1024::htLookupReq<16>(sessionID, 0));
-                currAxisState = STATE_RECOVER;
+                s_axis_lup_req.write(hash_table_16_1024::htLookupReq<16>(currSessionID, 0));
+                currAxisState = RECOVER_STATE;
             }
             break;
         }
-        case STATE_RECOVER: {
+        case RECOVER_STATE: {
             if(!m_axis_lup_rsp.empty()){
                 hash_table_16_1024::htLookupResp<16, 1024> response = m_axis_lup_rsp.read();
                 if(response.hit){
                     currMsgBody.consume_word(response.value);
                 }
                 else{
-                    s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_INSERT, sessionID, currMsgBody.output_word(), 0));
+                    s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_INSERT, currSessionID, currMsgBody.output_word(), 0));
                 }
                 // we should expect the hash table is enough to handle all active connections; 
-                currAxisState = AXIS_ONGOING;
+                currAxisState = READ_WORD;
             }
             break;
         }
-        case AXIS_ONGOING: { // continue the AXIS transaction
+        case READ_WORD: { // continue the AXIS transaction
             if(!rxData.empty()){
-            	net_axis<DATA_WIDTH> currWord;
-            	net_axis<DATA_WIDTH> outputWord;
-                msgHeader currMsgHeader;
                 rxData.read(currWord);
-                ap_uint<8> validLen = keepToLen(currWord.keep);
-                while(validLen > 0){
-                    if(currSessionState.parsingHeader == 0){
-                        ap_uint<5> requiredHeaderLen = 24 - currSessionState.currLen;
-                        if(validLen > requiredHeaderLen){
-                            currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredHeaderLen*8);
-                            currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
-                            msgHeaderFifo.write(currMsgHeader);
-                            sessionIdFifo.write(sessionID);
-                            validLen -= requiredHeaderLen;
-                            currSessionState.currLen = 0;
-                            currSessionState.parsingHeader = 1; // header is parsed. 
-                        }
-                        else{
-                            currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, requiredHeaderLen*8-validLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-validLen*8);
-                            currSessionState.currLen += validLen;
-                            validLen = 0;
-                        }
+                currValidLen = keepToLen(currWord.keep);
+                currAxisState = PARSE_WORD;
+            }
+            break;
+        }
+        // consuming currWord 
+        case PARSE_WORD: {
+            if(currValidLen > 0){
+                if(currSessionState.parsingHeader == 0){
+                    ap_uint<5> requiredHeaderLen = 24 - currSessionState.currLen;
+                    if(currValidLen > requiredHeaderLen){
+                        currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredHeaderLen*8);
+                        currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+                        msgHeaderFifo.write(currMsgHeader);
+                        sessionIdFifo.write(currSessionID);
+                        currValidLen -= requiredHeaderLen;
+                        currSessionState.currLen = 0;
+                        currSessionState.parsingHeader = 1; // header is parsed. 
                     }
                     else{
-                        currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
-                        
-                        switch(currSessionState.parsingBody){
-                            case 0: 
-                                if(currMsgHeader.extLen != 0){
-                                    ap_uint<8> currExtLen = currSessionState.currExtLen;
-                                    ap_uint<8> requiredExtLen = currMsgHeader.extLen - currExtLen;
-                                    if(validLen > requiredExtLen){
-                                        currMsgBody.ext(requiredExtLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredExtLen*8);
-                                        validLen -= requiredExtLen;
-                                        currSessionState.currExtLen = 0;
-                                        currSessionState.parsingBody = 1; // ext is parsing
-                                    }
-                                    else{
-                                        currMsgBody.ext(requiredExtLen*8-1, requiredExtLen*8-validLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-validLen*8);
-                                        currSessionState.currExtLen += validLen;
-                                        validLen = 0;
-                                    }
-                                }
-                                else{
-                                    currSessionState.parsingBody = 1;
-                                }
-                                break;
-                            case 1:
-                                if(currMsgHeader.keyLen != 0){
-                                    ap_uint<8> currKeyLen = currSessionState.currKeyLen;
-                                    ap_uint<8> requiredKeyLen = currMsgHeader.keyLen - currKeyLen;
-                                    if(validLen > requiredKeyLen){
-                                        currMsgBody.key(requiredKeyLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredKeyLen*8);
-                                        validLen -= requiredKeyLen;
-                                        currSessionState.currKeyLen = 0;
-                                        currSessionState.parsingBody = 2; // key is parsing
-                                    }
-                                    else{
-                                        currMsgBody.key(requiredKeyLen*8-1, requiredKeyLen*8-validLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-validLen*8);
-                                        currSessionState.currKeyLen += validLen;
-                                        validLen = 0;
-                                    }
-                                }
-                                else{
-                                    currSessionState.parsingBody = 2;
-                                }
-                                break;
-                            case 2: 
-                                if(currMsgHeader.val_len() != 0){
-                                    ap_uint<8> currValLen = currSessionState.currValLen;
-                                    ap_uint<8> requiredValLen = currMsgHeader.val_len() - currValLen;
-                                    if(validLen > requiredValLen){
-                                        currMsgBody.val(requiredValLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredValLen*8);
-                                        validLen -= requiredValLen;
-                                        currSessionState.currValLen = 0;
-                                        currSessionState.parsingBody = 0; // val is parsing
-                                        msgBodyFifo.write(currMsgBody);
-                                    }
-                                    else{
-                                        currMsgBody.val(requiredValLen*8-1, requiredValLen*8-validLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-validLen*8);
-                                        currSessionState.currValLen += validLen;
-                                        validLen = 0;
-                                    }
-                                }
-                                else{
-                                    currSessionState.parsingBody = 0;
-                                    currMsgBody.msgID = currentMsgID;
-                                    currentMsgID += 1;
-                                    msgBodyFifo.write(currMsgBody);
-                                }
-                                break;
-                            case 3: 
-                                std::cerr << "error" << std::endl;
-                        }
+                        currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, requiredHeaderLen*8-currValidLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-currValidLen*8);
+                        currSessionState.currLen += currValidLen;
+                        currValidLen = 0;
                     }
                 }
-                if(currWord.last == 1){ // the AXIS transaction ends
-                    currAxisState = IDLE;
-                    // In the end of each AXIS, store sessionState and currMsgBody back. 
-                    // msgHeader already written out or can be recovered from sessionStateTable. 
-                    sessionStateTable[sessionID] = currSessionState;
-                    s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_INSERT, sessionID, currMsgBody.output_word(), 0));
-                    // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
-                    // TODO: or store currMsgBody in URAM. 
+                else{
+                    currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+                    
+                    switch(currSessionState.parsingBody){
+                        case 0: 
+                            if(currMsgHeader.extLen != 0){
+                                ap_uint<8> currExtLen = currSessionState.currExtLen;
+                                ap_uint<8> requiredExtLen = currMsgHeader.extLen - currExtLen;
+                                if(currValidLen > requiredExtLen){
+                                    currMsgBody.ext(requiredExtLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredExtLen*8);
+                                    currValidLen -= requiredExtLen;
+                                    currSessionState.currExtLen = 0;
+                                    currSessionState.parsingBody = 1; // ext is parsed
+                                }
+                                else{
+                                    currMsgBody.ext(requiredExtLen*8-1, requiredExtLen*8-currValidLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-currValidLen*8);
+                                    currSessionState.currExtLen += currValidLen;
+                                    currValidLen = 0;
+                                }
+                            }
+                            else{
+                                currSessionState.parsingBody = 1;
+                            }
+                            break;
+                        case 1:
+                            if(currMsgHeader.keyLen != 0){
+                                ap_uint<8> currKeyLen = currSessionState.currKeyLen;
+                                ap_uint<8> requiredKeyLen = currMsgHeader.keyLen - currKeyLen;
+                                if(currValidLen > requiredKeyLen){
+                                    currMsgBody.key(requiredKeyLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredKeyLen*8);
+                                    currValidLen -= requiredKeyLen;
+                                    currSessionState.currKeyLen = 0;
+                                    currSessionState.parsingBody = 2; // key is parsed
+                                }
+                                else{
+                                    currMsgBody.key(requiredKeyLen*8-1, requiredKeyLen*8-currValidLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-currValidLen*8);
+                                    currSessionState.currKeyLen += currValidLen;
+                                    currValidLen = 0;
+                                }
+                            }
+                            else{
+                                currSessionState.parsingBody = 2;
+                            }
+                            break;
+                        case 2: 
+                            if(currMsgHeader.val_len() != 0){
+                                ap_uint<8> currValLen = currSessionState.currValLen;
+                                ap_uint<8> requiredValLen = currMsgHeader.val_len() - currValLen;
+                                if(currValidLen > requiredValLen){
+                                    currMsgBody.val(requiredValLen*8-1, 0) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredValLen*8);
+                                    currValidLen -= requiredValLen;
+                                    currSessionState.currValLen = 0;
+                                    currSessionState.parsingBody = 0; // val is parsed
+                                    msgBodyFifo.write(currMsgBody);
+                                }
+                                else{
+                                    currMsgBody.val(requiredValLen*8-1, requiredValLen*8-currValidLen*8) = currWord.data(DATA_WIDTH-1, DATA_WIDTH-currValidLen*8);
+                                    currSessionState.currValLen += currValidLen;
+                                    currValidLen = 0;
+                                }
+                            }
+                            else{
+                                currSessionState.parsingBody = 0;
+                                currMsgBody.msgID = currentMsgID;
+                                currentMsgID += 1;
+                                msgBodyFifo.write(currMsgBody);
+                            }
+                            break;
+                        case 3: 
+                            std::cerr << "error" << std::endl;
+                    }
                 }
+            }
+            // check whether we have consumed current word. 
+            currAxisState = currValidLen > 0 ? PARSE_WORD : READ_WORD;
+            // check whether this is the last word of this ASIX transaction. 
+            if(currWord.last == 1){ // the AXIS transaction ends
+                currAxisState = IDLE;
+                // In the end of each AXIS, store sessionState and currMsgBody back. 
+                // msgHeader already written out or can be recovered from sessionStateTable. 
+                sessionStateTable[currSessionID] = currSessionState;
+                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_INSERT, currSessionID, currMsgBody.output_word(), 0));
+                // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
+                // TODO: or store currMsgBody in URAM. 
             }
             break;
         }
@@ -373,7 +382,7 @@ void proxy(
     hls::stream<ap_uint<16> >& idxFifo,
 	hls::stream<ap_uint<16> >& sessionIdFifo3
 ){
-#pragma HLS PIPELINE II=2
+#pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
 	static ap_uint<16> currSessionID;
@@ -543,7 +552,7 @@ void deparser(
 	hls::stream<appTxMeta>& txMetaData, 
     hls::stream<net_axis<DATA_WIDTH> >& txData
 ){
-#pragma HLS PIPELINE II=1
+#pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
 
 	ap_uint<16> currSessionID;
