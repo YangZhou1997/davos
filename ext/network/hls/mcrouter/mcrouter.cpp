@@ -95,7 +95,7 @@ static ap_uint<16> sessionCount = 0;
         ipTuple tuple = openTuples.read();
 		openConnection.write(tuple);
     }
-	if (!openConStatus.empty())
+	else if (!openConStatus.empty())
 	{
 		openStatus newConn = openConStatus.read();
 		if (newConn.success)
@@ -105,7 +105,10 @@ static ap_uint<16> sessionCount = 0;
             sessionCount += 1;
 		}
 	}
-    if(!cmdFifo.empty()){
+    // you should use "else if"; 
+    // if you just use "if", hls will think of you want to parallel the five block
+    //, and check the data dependency, and reduce the II. 
+    else if(!cmdFifo.empty()){
         ap_uint<2> cmd = cmdFifo.read();
         switch(cmd) {
             case 0:{
@@ -114,13 +117,13 @@ static ap_uint<16> sessionCount = 0;
             }
         }
     }
-    if(!hashValFifo.empty()){
+    else if(!hashValFifo.empty()){
         ap_uint<32> hashVal = hashValFifo.read();
         // TODO: handling closed connections, or in policy engine
         ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1)) % sessionCount;
         sessionIdFifo.write(connectedSessions[idx]);
     }
-    if(!idxFifo.empty()){
+    else if(!idxFifo.empty()){
         ap_uint<16> idx = idxFifo.read();
         // TODO: handling closed connections, or in policy engine
         sessionIdFifo3.write(connectedSessions[idx]);
