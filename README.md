@@ -82,7 +82,7 @@ $ make bitstream
 $ cd hls/dma_bench
 $ mkdir build
 $ cd build
-$ cmake .. -DFPGA_PART=xcvu9p-flga2104-2L-e -DCLOCK_PERIOD=3.2
+$ cmake .. -DFPGA_PART=xcu250-figd2104-2L-e -DCLOCK_PERIOD=3.2
 ```
 
 2. Run c-simulation

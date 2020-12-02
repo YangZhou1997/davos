@@ -8,7 +8,7 @@ add_files -tb test_arp_server_subnet.cpp
 
 open_solution "solution1"
 #set_part {xc7vx690tffg1761-3}
-set_part {xcvu9p-flga2104-2L-e}
+set_part {xcu250-figd2104-2L-e}
 
 create_clock -period 6.4 -name default
 

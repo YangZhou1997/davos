@@ -7,7 +7,7 @@ add_files -tb test_ethernet_frame_padding_512.cpp
 
 open_solution "solution1"
 #set_part {xc7vx690tffg1157-2}
-set_part {xcvu9p-flga2104-2L-e}
+set_part {xcu250-figd2104-2L-e}
 create_clock -period 3.2 -name default
 
 #config_rtl -disable_start_propagation

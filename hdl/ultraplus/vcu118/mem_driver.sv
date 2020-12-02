@@ -43,17 +43,18 @@ module mem_driver #(
     output wire                  c0_ddr4_act_n,
     output wire[16:0]            c0_ddr4_adr,
     output wire[1:0]            c0_ddr4_ba,
-    output wire[0:0]            c0_ddr4_bg,
+    output wire[1:0]            c0_ddr4_bg,
     output wire[0:0]            c0_ddr4_cke,
     output wire[0:0]            c0_ddr4_odt,
     output wire[0:0]            c0_ddr4_cs_n,
     output wire[0:0]                 c0_ddr4_ck_t,
     output wire[0:0]                c0_ddr4_ck_c,
     output wire                 c0_ddr4_reset_n,
-    inout  wire[8:0]            c0_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    // inout  wire[8:0]            c0_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    output wire                 c0_ddr4_parity,
     inout  wire[71:0]            c0_ddr4_dq, //79:0 with native interface, 71:0 with Axi & ECC
-    inout  wire[8:0]            c0_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
-    inout  wire[8:0]            c0_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c0_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c0_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
     //output wire                 c0_ui_clk,
     output wire                 c0_init_calib_complete,
 
@@ -128,12 +129,13 @@ ddr4_ip ddr4_inst (
   .c0_ddr4_ba(c0_ddr4_ba),                                  // output wire [1 : 0] c0_ddr4_ba
   .c0_ddr4_cke(c0_ddr4_cke),                                // output wire [0 : 0] c0_ddr4_cke
   .c0_ddr4_cs_n(c0_ddr4_cs_n),                              // output wire [0 : 0] c0_ddr4_cs_n
-  .c0_ddr4_dm_dbi_n(c0_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+//   .c0_ddr4_dm_dbi_n(c0_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+  .c0_ddr4_parity(c0_ddr4_parity),
   .c0_ddr4_dq(c0_ddr4_dq),                                  // inout wire [71 : 0] c0_ddr4_dq
-  .c0_ddr4_dqs_c(c0_ddr4_dqs_c),                            // inout wire [8 : 0] c0_ddr4_dqs_c
-  .c0_ddr4_dqs_t(c0_ddr4_dqs_t),                            // inout wire [8 : 0] c0_ddr4_dqs_t
+  .c0_ddr4_dqs_c(c0_ddr4_dqs_c),                            // inout wire [17 : 0] c0_ddr4_dqs_c
+  .c0_ddr4_dqs_t(c0_ddr4_dqs_t),                            // inout wire [17 : 0] c0_ddr4_dqs_t
   .c0_ddr4_odt(c0_ddr4_odt),                                // output wire [0 : 0] c0_ddr4_odt
-  .c0_ddr4_bg(c0_ddr4_bg),                                  // output wire [0 : 0] c0_ddr4_bg
+  .c0_ddr4_bg(c0_ddr4_bg),                                  // output wire [1 : 0] c0_ddr4_bg
   .c0_ddr4_reset_n(c0_ddr4_reset_n),                        // output wire c0_ddr4_reset_n
   .c0_ddr4_act_n(c0_ddr4_act_n),                            // output wire c0_ddr4_act_n
   .c0_ddr4_ck_c(c0_ddr4_ck_c),                              // output wire [0 : 0] c0_ddr4_ck_c

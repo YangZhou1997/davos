@@ -18,7 +18,7 @@ create_project $proj_name $proj_dir
 
 # Set project properties
 set obj [get_projects $proj_name]
-set_property part {xcvu9p-flga2104-2L-e} $obj
+set_property part {xcu250-figd2104-2L-e} $obj
 set_property "target_language" "Verilog" $obj
 
 set_property IP_REPO_PATHS $lib_dir [current_fileset]

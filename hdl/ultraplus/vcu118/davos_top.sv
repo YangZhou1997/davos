@@ -73,17 +73,18 @@ module davos_top
     output wire                  c0_ddr4_act_n,
     output wire[16:0]            c0_ddr4_adr,
     output wire[1:0]            c0_ddr4_ba,
-    output wire[0:0]            c0_ddr4_bg,
+    output wire[1:0]            c0_ddr4_bg,
     output wire[0:0]            c0_ddr4_cke,
     output wire[0:0]            c0_ddr4_odt,
     output wire[0:0]            c0_ddr4_cs_n,
     output wire[0:0]                 c0_ddr4_ck_t,
     output wire[0:0]                c0_ddr4_ck_c,
     output wire                 c0_ddr4_reset_n,
-    inout  wire[8:0]            c0_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    // inout  wire[8:0]            c0_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    output wire                 c0_ddr4_parity,
     inout  wire[71:0]            c0_ddr4_dq, //79:0 with native interface, 71:0 with Axi & ECC
-    inout  wire[8:0]            c0_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
-    inout  wire[8:0]            c0_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c0_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c0_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
     
     //DDR1
     input wire                   c1_sys_clk_p,
@@ -91,28 +92,30 @@ module davos_top
     output wire                  c1_ddr4_act_n,
     output wire[16:0]            c1_ddr4_adr,
     output wire[1:0]            c1_ddr4_ba,
-    output wire[0:0]            c1_ddr4_bg,
+    output wire[1:0]            c1_ddr4_bg,
     output wire[0:0]            c1_ddr4_cke,
     output wire[0:0]            c1_ddr4_odt,
     output wire[0:0]            c1_ddr4_cs_n,
     output wire[0:0]                 c1_ddr4_ck_t,
     output wire[0:0]                c1_ddr4_ck_c,
     output wire                 c1_ddr4_reset_n,
-    inout  wire[8:0]            c1_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    // inout  wire[8:0]            c1_ddr4_dm_dbi_n, //9:0 with native interface, 8:0 with Axi & ECC
+    output wire                 c1_ddr4_parity,
     inout  wire[71:0]            c1_ddr4_dq, //79:0 with native interface, 71:0 with Axi & ECC
-    inout  wire[8:0]            c1_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
-    inout  wire[8:0]            c1_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c1_ddr4_dqs_t, //9:0 with native interface, 8:0 with Axi & ECC
+    inout  wire[17:0]            c1_ddr4_dqs_c, //9:0 with native interface, 8:0 with Axi & ECC
 `endif
     
     //buttons
-    input wire              button_center,
-    input wire              button_north,
-    input wire              button_west,
-    input wire              button_south,
-    input wire              button_east,
+    // input wire              button_center,
+    // input wire              button_north,
+    // input wire              button_west,
+    // input wire              button_south,
+    // input wire              button_east,
     
-    input wire[3:0]         gpio_switch,
-    output wire [7:0]       led
+    // input wire[3:0]         gpio_switch,
+    output wire [2:0]       led
+    // output wire [7:0]       led
 );
 
 
@@ -254,10 +257,10 @@ end
 assign led[0] = pcie_lnk_up;
 assign led[1] = network_init;
 assign led[2] = ddr_calib_complete;
-assign led[3] = led_pcie_clk[LED_CTR_WIDTH-1];
-assign led[4] = led_net_clk[LED_CTR_WIDTH-1];
-assign led[5] = led_ddr_clk[LED_CTR_WIDTH-1];
-assign led[6] = rx_aligned_led;
+// assign led[3] = led_pcie_clk[LED_CTR_WIDTH-1];
+// assign led[4] = led_net_clk[LED_CTR_WIDTH-1];
+// assign led[5] = led_ddr_clk[LED_CTR_WIDTH-1];
+// assign led[6] = rx_aligned_led;
 
 
 /*
@@ -617,7 +620,8 @@ mem_driver  mem_driver0_inst(
 .c0_ddr4_ba(c0_ddr4_ba),                                  // output wire [1 : 0] c0_ddr4_ba
 .c0_ddr4_cke(c0_ddr4_cke),                                // output wire [0 : 0] c0_ddr4_cke
 .c0_ddr4_cs_n(c0_ddr4_cs_n),                              // output wire [0 : 0] c0_ddr4_cs_n
-.c0_ddr4_dm_dbi_n(c0_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+// .c0_ddr4_dm_dbi_n(c0_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+.c0_ddr4_parity(c0_ddr4_parity),
 .c0_ddr4_dq(c0_ddr4_dq),                                  // inout wire [71 : 0] c0_ddr4_dq
 .c0_ddr4_dqs_c(c0_ddr4_dqs_c),                            // inout wire [8 : 0] c0_ddr4_dqs_c
 .c0_ddr4_dqs_t(c0_ddr4_dqs_t),                            // inout wire [8 : 0] c0_ddr4_dqs_t
@@ -690,7 +694,8 @@ mem_driver  mem_driver1_inst(
 .c0_ddr4_ba(c1_ddr4_ba),                                  // output wire [1 : 0] c0_ddr4_ba
 .c0_ddr4_cke(c1_ddr4_cke),                                // output wire [0 : 0] c0_ddr4_cke
 .c0_ddr4_cs_n(c1_ddr4_cs_n),                              // output wire [0 : 0] c0_ddr4_cs_n
-.c0_ddr4_dm_dbi_n(c1_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+// .c0_ddr4_dm_dbi_n(c1_ddr4_dm_dbi_n),                      // inout wire [8 : 0] c0_ddr4_dm_dbi_n
+.c0_ddr4_parity(c1_ddr4_parity),
 .c0_ddr4_dq(c1_ddr4_dq),                                  // inout wire [71 : 0] c0_ddr4_dq
 .c0_ddr4_dqs_c(c1_ddr4_dqs_c),                            // inout wire [8 : 0] c0_ddr4_dqs_c
 .c0_ddr4_dqs_t(c1_ddr4_dqs_t),                            // inout wire [8 : 0] c0_ddr4_dqs_t

@@ -10,7 +10,7 @@ if ($args.Count -eq 1) {
     } 
     
     elseif ($args.Get(0) -eq "vcu118") {
-        $PART = "xcvu9p-flga2104-2L-e"
+        $PART = "xcu250-figd2104-2L-e"
         Write-Output "Compiling for $PART"
     } 
     

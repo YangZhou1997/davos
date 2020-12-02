@@ -27,7 +27,7 @@ cd build
 
 2.a) Configure build
 ```    
-cmake .. -DDATA_WIDTH=64 -DCLOCK_PERIOD=3.1 -DFPGA_PART=xcvu9p-flga2104-2L-e -DFPGA_FAMILY=ultraplus -DVIVADO_HLS_ROOT_DIR=/opt/Xilinx/Vivado//2019.1/bin/
+cmake .. -DDATA_WIDTH=64 -DCLOCK_PERIOD=3.1 -DFPGA_PART=xcu250-figd2104-2L-e -DFPGA_FAMILY=ultraplus -DVIVADO_HLS_ROOT_DIR=/opt/Xilinx/Vivado//2019.1/bin/
 ```
 
 2.b)Alternatively you can use one the board name ot configure your build
@@ -64,7 +64,7 @@ For an example project including the TCP/IP stack or the RoCEv2 stack with DMA t
 $ cd hls/toe
 $ mkdir build
 $ cd build
-$ cmake .. -DFPGA_PART=xcvu9p-flga2104-2L-e -DDATA_WIDTH=8 -DCLOCK_PERIOD=3.1
+$ cmake .. -DFPGA_PART=xcu250-figd2104-2L-e -DDATA_WIDTH=8 -DCLOCK_PERIOD=3.1
 ```
 
 2. Run c-simulation
