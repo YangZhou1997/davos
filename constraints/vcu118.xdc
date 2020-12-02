@@ -1,9 +1,16 @@
 # BIFILE/BITSTERAM compress options
 # Flash type constraints. These should be modified to match the target board.
-set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 8 [current_design]
-set_property BITSTREAM.CONFIG.EXTMASTERCCLK_EN div-1 [current_design]
-set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
-set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
+# General configuration
+set_property CFGBVS GND                                [current_design]
+set_property CONFIG_VOLTAGE 1.8                        [current_design]
+set_property BITSTREAM.GENERAL.COMPRESS true           [current_design]
+set_property BITSTREAM.CONFIG.CONFIGFALLBACK ENABLE    [current_design]
+set_property BITSTREAM.CONFIG.EXTMASTERCCLK_EN DISABLE [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 63.8          [current_design]
+set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES       [current_design]
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4           [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES        [current_design]
+set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 
 
 # set_property IOSTANDARD LVDS [get_ports dclk_p]
@@ -133,7 +140,7 @@ set_property -dict {PACKAGE_PIN AV37 IOSTANDARD SSTL12_DCI     } [get_ports c0_d
 set_property -dict {PACKAGE_PIN AV36 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[1]   ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR1"    - IO_L15P_T2L_N4_AD11P_42
 set_property -dict {PACKAGE_PIN AW36 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[4]   ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR4"    - IO_L14N_T2L_N3_GC_42
 set_property -dict {PACKAGE_PIN AW35 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[3]   ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR3"    - IO_L14P_T2L_N2_GC_42
-set_property -dict {PACKAGE_PIN BA38 IOSTANDARD LVCMOS12       } [get_ports c0_ddr4_alert_n  ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ALERT_B" - IO_L11N_T1U_N9_GC_42
+# set_property -dict {PACKAGE_PIN BA38 IOSTANDARD LVCMOS12       } [get_ports c0_ddr4_alert_n  ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ALERT_B" - IO_L11N_T1U_N9_GC_42
 set_property -dict {PACKAGE_PIN BA37 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[8]   ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR8"    - IO_L11P_T1U_N8_GC_42
 set_property -dict {PACKAGE_PIN BA40 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[7]   ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR7"    - IO_L10N_T1U_N7_QBC_AD4N_42
 set_property -dict {PACKAGE_PIN BA39 IOSTANDARD SSTL12_DCI     } [get_ports c0_ddr4_adr[11]  ]; # Bank 42 VCCO - VCC1V2 Net "DDR4_C0_ADR11"   - IO_L10P_T1U_N6_QBC_AD4P_42
@@ -388,7 +395,7 @@ set_property -dict {PACKAGE_PIN AV24 IOSTANDARD SSTL12_DCI     } [get_ports c1_d
 set_property -dict {PACKAGE_PIN AV23 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_cs_n[0]  ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_CS_B0"    - IO_L14P_T2L_N2_GC_A04_D20_65
 set_property -dict {PACKAGE_PIN AW26 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_bg[1]    ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_BG1"      - IO_L13N_T2L_N1_GC_QBC_A07_D23_65
 set_property -dict {PACKAGE_PIN AW25 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_act_n    ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ACT_B"    - IO_L13P_T2L_N0_GC_QBC_A06_D22_65
-set_property -dict {PACKAGE_PIN AY26 IOSTANDARD LVCMOS12       } [get_ports c1_ddr4_alert_n  ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ALERT_B"  - IO_L11N_T1U_N9_GC_A11_D27_65
+# set_property -dict {PACKAGE_PIN AY26 IOSTANDARD LVCMOS12       } [get_ports c1_ddr4_alert_n  ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ALERT_B"  - IO_L11N_T1U_N9_GC_A11_D27_65
 set_property -dict {PACKAGE_PIN AY25 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_adr[8]   ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ADR8"     - IO_L11P_T1U_N8_GC_A10_D26_65
 set_property -dict {PACKAGE_PIN AY23 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_adr[5]   ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ADR5"     - IO_L10N_T1U_N7_QBC_AD4N_A13_D29_65
 set_property -dict {PACKAGE_PIN AY22 IOSTANDARD SSTL12_DCI     } [get_ports c1_ddr4_adr[4]   ]; # Bank 65 VCCO - VCC1V2 Net "DDR4_C1_ADR4"     - IO_L10P_T1U_N6_QBC_AD4P_A12_D28_65

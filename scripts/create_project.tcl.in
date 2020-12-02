@@ -71,3 +71,5 @@ source ${CMAKE_CURRENT_SOURCE_DIR}/scripts/dma_${FPGA_FAMILY}.tcl
 add_files ${CMAKE_BINARY_DIR}/role_wrapper.sv
 source ${CMAKE_SOURCE_DIR}/scripts/${ROLE_NAME}.tcl
 
+#Debug
+source ${CMAKE_SOURCE_DIR}/scripts/ila.tcl

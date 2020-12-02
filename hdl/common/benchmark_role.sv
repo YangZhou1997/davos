@@ -693,6 +693,10 @@ always @(posedge user_clk) begin
     end
 end
 
+`ifndef DEBUG
+`define DEBUG
+`endif
+
 `ifdef DEBUG
 
 ila_32_mixed benchmark_debug (

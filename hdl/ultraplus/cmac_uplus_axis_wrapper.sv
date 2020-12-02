@@ -546,6 +546,9 @@ cmac_usplus_axis cmac_axis_inst (
 );
 
 
+`ifndef DEBUG
+`define DEBUG
+`endif
 
 `ifdef DEBUG
 
@@ -554,7 +557,7 @@ logic[31:0] rx_total_packets_count;
 logic[31:0] rx_good_bytes_count;
 logic[31:0] rx_total_bytes_count;
 
-always @(posedge cmac_drp.gt_txusrclk2) begin
+always @(posedge gt_txusrclk2) begin
     if (usr_rx_reset_w) begin
         rx_good_packets_count <= '0;
         rx_total_packets_count <= '0;
@@ -570,13 +573,13 @@ always @(posedge cmac_drp.gt_txusrclk2) begin
 end
     
 ila_mixed ila_rx (
-    .clk(cmac_drp.gt_txusrclk2), // input wire clk
+    .clk(gt_txusrclk2), // input wire clk
 
 
     .probe0(ctl_rx_enable), // input wire [0:0]  probe0
     .probe1(ctl_rx_force_resync), // input wire [0:0]  probe1
     .probe2(0), // input wire [0:0]  probe2
-    .probe3(cmac_stat.stat_rx_aligned), // input wire [0:0]  probe3
+    .probe3(stat_rx_aligned), // input wire [0:0]  probe3
     .probe4(stat_rx_aligned_1d), // input wire [0:0]  probe4
     .probe5(rx_reset_done), // input wire [0:0]  probe5
     .probe6(stat_rx_bad_code[0]), // input wire [0:0]  probe6
@@ -600,7 +603,7 @@ logic[15:0] sfd_errors;
 
 logic[15:0] overflow_count;
 logic[15:0] underflow_count;
-always @(posedge cmac_drp.gt_txusrclk2) begin
+always @(posedge gt_txusrclk2) begin
     if (usr_rx_reset_w) begin
         align_errors <= '0;
         code_errors <= '0;
@@ -627,10 +630,10 @@ always @(posedge cmac_drp.gt_txusrclk2) begin
         if (stat_rx_bad_sfd != 0) begin
             sfd_errors <= sfd_errors + 1;
         end
-        if (cmac_lbus_tx.ovf == 1'b1)  begin
+        if (tx_ovf == 1'b1)  begin
             overflow_count <= overflow_count + 1;
         end
-        if (cmac_lbus_tx.unf == 1'b1) begin
+        if (tx_unf == 1'b1) begin
             underflow_count <= underflow_count + 1;
         end
     end
@@ -642,7 +645,7 @@ logic[31:0] tx_total_packets_count;
 logic[31:0] tx_good_bytes_count;
 logic[31:0] tx_total_bytes_count;
 
-always @(posedge cmac_drp.gt_txusrclk2) begin
+always @(posedge gt_txusrclk2) begin
     if (core_tx_reset_w) begin
         tx_good_packets_count <= '0;
         tx_total_packets_count <= '0;
@@ -658,7 +661,7 @@ always @(posedge cmac_drp.gt_txusrclk2) begin
 end
 
 ila_mixed ila_tx (
-	.clk(cmac_drp.gt_txusrclk2), // input wire clk
+	.clk(gt_txusrclk2), // input wire clk
 
 
 	.probe0(ctl_tx_enable), // input wire [0:0]  probe0 
@@ -666,9 +669,9 @@ ila_mixed ila_tx (
 	.probe2(ctl_tx_send_lfi), // input wire [0:0]  probe2
 	.probe3(ctl_tx_send_rfi), // input wire [0:0]  probe3
 	.probe4(ctl_tx_test_pattern), // input wire [0:0]  probe4
-	.probe5(cmac_lbus_tx.ovf), // input wire [0:0]  probe5
-	.probe6(cmac_lbus_tx.unf), // input wire [0:0]  probe6
-	.probe7(cmac_lbus_tx.rdy), // input wire [0:0]  probe7
+	.probe5(tx_ovf), // input wire [0:0]  probe5
+	.probe6(tx_unf), // input wire [0:0]  probe6
+	.probe7(0), // input wire [0:0]  probe7
 	.probe8(tx_prestate), // input wire [0:0]  probe8
 	.probe9(tx_reset_done), // input wire [0:0]  probe9
 	.probe10(tx_good_packets_count), // input wire [0:0]  probe10
