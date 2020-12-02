@@ -34,14 +34,14 @@ set_property PACKAGE_PIN K11 [get_ports gt_refclk_p]
 # set_property	PACKAGE_PIN	M2		[get_ports 	{gt_rxp_in[1]}	] ; 
 # set_property	PACKAGE_PIN	L4		[get_ports 	{gt_rxp_in[2]}	] ; 
 # set_property	PACKAGE_PIN	K2		[get_ports 	{gt_rxp_in[3]}	] ; 
-# set_property	PACKAGE_PIN	N8		[get_ports 	{gt_txn_in[0]}	] ; 
-# set_property	PACKAGE_PIN	M6		[get_ports 	{gt_txn_in[1]}	] ; 
-# set_property	PACKAGE_PIN	L8		[get_ports 	{gt_txn_in[2]}	] ; 
-# set_property	PACKAGE_PIN	K6		[get_ports 	{gt_txn_in[3]}	] ; 
-# set_property	PACKAGE_PIN	N9		[get_ports 	{gt_txp_in[0]}	] ; 
-# set_property	PACKAGE_PIN	M7		[get_ports 	{gt_txp_in[1]}	] ; 
-# set_property	PACKAGE_PIN	L9		[get_ports 	{gt_txp_in[2]}	] ; 
-# set_property	PACKAGE_PIN	K7		[get_ports 	{gt_txp_in[3]}	] ; 
+# set_property	PACKAGE_PIN	N8		[get_ports 	{gt_txn_out[0]}	] ; 
+# set_property	PACKAGE_PIN	M6		[get_ports 	{gt_txn_out[1]}	] ; 
+# set_property	PACKAGE_PIN	L8		[get_ports 	{gt_txn_out[2]}	] ; 
+# set_property	PACKAGE_PIN	K6		[get_ports 	{gt_txn_out[3]}	] ; 
+# set_property	PACKAGE_PIN	N9		[get_ports 	{gt_txp_out[0]}	] ; 
+# set_property	PACKAGE_PIN	M7		[get_ports 	{gt_txp_out[1]}	] ; 
+# set_property	PACKAGE_PIN	L9		[get_ports 	{gt_txp_out[2]}	] ; 
+# set_property	PACKAGE_PIN	K7		[get_ports 	{gt_txp_out[3]}	] ; 
 
 #QSPF28 Connector2
 set_property	PACKAGE_PIN	U3		[get_ports 	{gt_rxn_in[0]}	] ; 
@@ -52,14 +52,14 @@ set_property	PACKAGE_PIN	U4		[get_ports 	{gt_rxp_in[0]}	] ;
 set_property	PACKAGE_PIN	T2		[get_ports 	{gt_rxp_in[1]}	] ; 
 set_property	PACKAGE_PIN	R4		[get_ports 	{gt_rxp_in[2]}	] ; 
 set_property	PACKAGE_PIN	P2		[get_ports 	{gt_rxp_in[3]}	] ; 
-set_property	PACKAGE_PIN	U8		[get_ports 	{gt_txn_in[0]}	] ; 
-set_property	PACKAGE_PIN	T6		[get_ports 	{gt_txn_in[1]}	] ; 
-set_property	PACKAGE_PIN	R8		[get_ports 	{gt_txn_in[2]}	] ; 
-set_property	PACKAGE_PIN	P6		[get_ports 	{gt_txn_in[3]}	] ; 
-set_property	PACKAGE_PIN	U9		[get_ports 	{gt_txp_in[0]}	] ; 
-set_property	PACKAGE_PIN	T7		[get_ports 	{gt_txp_in[1]}	] ; 
-set_property	PACKAGE_PIN	R9		[get_ports 	{gt_txp_in[2]}	] ; 
-set_property	PACKAGE_PIN	P7		[get_ports 	{gt_txp_in[3]}	] ; 
+set_property	PACKAGE_PIN	U8		[get_ports 	{gt_txn_out[0]}	] ; 
+set_property	PACKAGE_PIN	T6		[get_ports 	{gt_txn_out[1]}	] ; 
+set_property	PACKAGE_PIN	R8		[get_ports 	{gt_txn_out[2]}	] ; 
+set_property	PACKAGE_PIN	P6		[get_ports 	{gt_txn_out[3]}	] ; 
+set_property	PACKAGE_PIN	U9		[get_ports 	{gt_txp_out[0]}	] ; 
+set_property	PACKAGE_PIN	T7		[get_ports 	{gt_txp_out[1]}	] ; 
+set_property	PACKAGE_PIN	R9		[get_ports 	{gt_txp_out[2]}	] ; 
+set_property	PACKAGE_PIN	P7		[get_ports 	{gt_txp_out[3]}	] ; 
 
 # CPU_RESET
 set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports sys_reset]
