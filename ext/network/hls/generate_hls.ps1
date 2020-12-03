@@ -5,7 +5,7 @@ $HLS_DIR = $PSScriptRoot
 
 if ($args.Count -eq 1) { 
     if ($args.Get(0) -eq "vc709") {
-        $PART = "xc7vx690tffg1761-3"
+        $PART = "xc7vx690tffg1761-2"
         Write-Output "Compiling for $PART"
     } 
     

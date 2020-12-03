@@ -222,8 +222,8 @@ interface axi_mm;
     logic           awready;
  
     //write data
-    logic [255:0]   wdata;
-    logic [31:0]    wstrb;
+    logic [511:0]   wdata;
+    logic [63:0]    wstrb;
     logic           wlast;
     logic           wvalid;
     logic           wready;
@@ -249,7 +249,7 @@ interface axi_mm;
     //read data
     logic [3:0]     rid;
     logic [1:0]     rresp; 
-    logic [255:0]   rdata;
+    logic [511:0]   rdata;
     logic           rvalid;
     logic           rlast;
     logic           rready;

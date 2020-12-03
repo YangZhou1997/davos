@@ -6,7 +6,7 @@ add_files udpAppMux.cpp
 add_files -tb udpAppMux_tb.cpp
 
 open_solution "solution1"
-set_part {xc7vx690tffg1761-3}
+set_part {xc7vx690tffg1761-2}
 create_clock -period 6.4 -name default
 config_rtl -reset all -reset_async
 

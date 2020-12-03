@@ -26,7 +26,7 @@ add_files toe.cpp
 add_files -tb toe_tb.cpp
 
 open_solution "solution1"
-set_part {xc7vx690tffg1761-3}
+set_part {xc7vx690tffg1761-2}
 create_clock -period 6.66 -name default
 
 #csim_design -clean -argv {../../../../testVectors/io_finwp_5.dat ../../../../testVectors/rxOutput.dat ../../../../testVectors/txOutput.dat ../../../../testVectors/rx_io_finwp_5.gold}

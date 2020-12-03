@@ -661,7 +661,7 @@ always @(posedge gt_txusrclk2) begin
     end
 end
 
-ila_mixed ila_tx (
+ila_mixed2 ila_tx (
 	.clk(gt_txusrclk2), // input wire clk
 
 

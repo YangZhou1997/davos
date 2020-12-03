@@ -44,9 +44,9 @@ if {$command == "synthesis"} {
 } elseif {$command == "ip"} {
    export_design -format ip_catalog -ipname "toe" -display_name "10G TCP Offload Engine" -description "TCP Offload Engine supporting 10Gbps line rate, up to 10K concurrent sessions." -vendor "ethz.systems" -version "1.6"
 } elseif {$command == "installip"} {
-   file mkdir $ENV{IPREPO_DIR}
-   file delete -force $ENV{IPREPO_DIR}/${PROJECT_NAME}
-   file copy -force ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_prj/solution1/impl/ip $ENV{IPREPO_DIR}/${PROJECT_NAME}/
+   file mkdir ${IPREPO_DIR}
+   file delete -force ${IPREPO_DIR}/${PROJECT_NAME}
+   file copy -force ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_prj/solution1/impl/ip ${IPREPO_DIR}/${PROJECT_NAME}/
 } else {
    puts "No valid command specified. Use vivado_hls -f make.tcl <synthesis|csim|ip> ."
 }

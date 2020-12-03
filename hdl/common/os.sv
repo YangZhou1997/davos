@@ -33,7 +33,7 @@
 `include "davos_types.svh"
 
 module os #(
-    parameter AXI_ID_WIDTH = 1,
+    parameter AXI_ID_WIDTH = 4,
     parameter NUM_DDR_CHANNELS = 2, //TODO move
     parameter ENABLE_DDR = 1
 ) (
@@ -55,7 +55,7 @@ module os #(
     input wire          ddr_calib_complete,
     // Slave Interface Write Address Ports
     output logic [AXI_ID_WIDTH-1:0]                 m_axi_awid  [NUM_DDR_CHANNELS-1:0],
-    output logic [31:0]                             m_axi_awaddr    [NUM_DDR_CHANNELS-1:0],
+    output logic [33:0]                             m_axi_awaddr    [NUM_DDR_CHANNELS-1:0],
     output logic [7:0]                              m_axi_awlen [NUM_DDR_CHANNELS-1:0],
     output logic [2:0]                              m_axi_awsize    [NUM_DDR_CHANNELS-1:0],
     output logic [1:0]                              m_axi_awburst   [NUM_DDR_CHANNELS-1:0],
@@ -77,7 +77,7 @@ module os #(
     input wire[NUM_DDR_CHANNELS-1:0]                                      m_axi_bvalid,
     // Slave Interface Read Address Ports
     output logic [AXI_ID_WIDTH-1:0]                 m_axi_arid  [NUM_DDR_CHANNELS-1:0],
-    output logic [31:0]                             m_axi_araddr    [NUM_DDR_CHANNELS-1:0],
+    output logic [33:0]                             m_axi_araddr    [NUM_DDR_CHANNELS-1:0],
     output logic [7:0]                              m_axi_arlen [NUM_DDR_CHANNELS-1:0],
     output logic [2:0]                              m_axi_arsize    [NUM_DDR_CHANNELS-1:0],
     output logic [1:0]                              m_axi_arburst   [NUM_DDR_CHANNELS-1:0],

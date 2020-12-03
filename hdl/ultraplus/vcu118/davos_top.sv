@@ -635,8 +635,8 @@ endgenerate
 /*
  * Memory Interface
  */
-localparam C0_C_S_AXI_ID_WIDTH = 1;
-localparam C0_C_S_AXI_ADDR_WIDTH = 32;
+localparam C0_C_S_AXI_ID_WIDTH = 4;
+localparam C0_C_S_AXI_ADDR_WIDTH = 34;
 localparam C0_C_S_AXI_DATA_WIDTH = 512;
 
 wire[NUM_DDR_CHANNELS-1:0] mem_clk;

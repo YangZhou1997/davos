@@ -29,8 +29,8 @@
 
 module mem_driver #(
     parameter ENABLE = 1,
-    parameter C0_C_S_AXI_ID_WIDTH = 1,
-    parameter C0_C_S_AXI_ADDR_WIDTH = 32,
+    parameter C0_C_S_AXI_ID_WIDTH = 4,
+    parameter C0_C_S_AXI_ADDR_WIDTH = 34,
     parameter C0_C_S_AXI_DATA_WIDTH = 512
 
 )(

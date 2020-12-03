@@ -171,13 +171,13 @@ xdma_ip dma_inst (
   // AXI Stream Interface
   .s_axis_c2h_tvalid_0(axis_dma_write_data_from_width.valid),                      // input wire s_axis_c2h_tvalid_0
   .s_axis_c2h_tready_0(axis_dma_write_data_from_width.ready),                      // output wire s_axis_c2h_tready_0
-  .s_axis_c2h_tdata_0(axis_dma_write_data_from_width.data),                        // input wire [255 : 0] s_axis_c2h_tdata_0
-  .s_axis_c2h_tkeep_0(axis_dma_write_data_from_width.keep),                        // input wire [31 : 0] s_axis_c2h_tkeep_0
+  .s_axis_c2h_tdata_0(axis_dma_write_data_from_width.data),                        // input wire [511 : 0] s_axis_c2h_tdata_0
+  .s_axis_c2h_tkeep_0(axis_dma_write_data_from_width.keep),                        // input wire [63 : 0] s_axis_c2h_tkeep_0
   .s_axis_c2h_tlast_0(axis_dma_write_data_from_width.last),                        // input wire s_axis_c2h_tlast_0
   .m_axis_h2c_tvalid_0(axis_dma_read_data_to_width.valid),                      // output wire m_axis_h2c_tvalid_0
   .m_axis_h2c_tready_0(axis_dma_read_data_to_width.ready),                      // input wire m_axis_h2c_tready_0
-  .m_axis_h2c_tdata_0(axis_dma_read_data_to_width.data),                        // output wire [255 : 0] m_axis_h2c_tdata_0
-  .m_axis_h2c_tkeep_0(axis_dma_read_data_to_width.keep),                        // output wire [31 : 0] m_axis_h2c_tkeep_0
+  .m_axis_h2c_tdata_0(axis_dma_read_data_to_width.data),                        // output wire [511 : 0] m_axis_h2c_tdata_0
+  .m_axis_h2c_tkeep_0(axis_dma_read_data_to_width.keep),                        // output wire [63 : 0] m_axis_h2c_tkeep_0
   .m_axis_h2c_tlast_0(axis_dma_read_data_to_width.last),                        // output wire m_axis_h2c_tlast_0
 
   // Descriptor Bypass
@@ -234,7 +234,7 @@ xdma_ip dma_inst (
   .m_axib_arcache   (m_axim.arcache),
   // read data channel 
   .m_axib_rid       (m_axim.rid),
-  .m_axib_rdata     ({256'b0}),           //256 m_axim.rid m_axim.rdata
+  .m_axib_rdata     ({512'b0}),           //256 m_axim.rid m_axim.rdata
   .m_axib_rresp     (m_axim.rresp),
   .m_axib_rlast     (m_axim.rlast),
   .m_axib_rvalid    (m_axim.rvalid),

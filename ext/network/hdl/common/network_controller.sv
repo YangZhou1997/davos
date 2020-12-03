@@ -259,7 +259,7 @@ begin
     if (~pcie_aresetn) begin
        s_axim.arready <= 1'b0;
        s_axim.rid     <= {4{1'b0}};
-       s_axim.rdata   <= {3{1'b0}};
+       s_axim.rdata   <= {512{1'b0}};
        s_axim.rresp   <= {2{1'b0}};
        s_axim.rlast   <= 1'b0;
        s_axim.rvalid  <= 1'b0;
@@ -346,6 +346,7 @@ wire[31:0]  legacy_cmd_fifo_count;
 wire        axis_legacy_merge_metadata_valid;
 wire        axis_legacy_merge_metadata_ready;
 wire[159:0] axis_legacy_merge_metadata_data;
+
 
 // Two-clock cmd_fifo: 2 stage synchronization 
 axis_data_fifo_160_cc cmd_fifo (
@@ -693,7 +694,7 @@ begin
                 s_axim.bvalid          <= 1'b0;
                 axis_by_tx_metadata_valid <= 1'b0;
                         
-                mmwriteAddr = (s_axim.awaddr[11:0] >> 5);
+                mmwriteAddr = (s_axim.awaddr[11:0] >> 6); //64B aligned addresses for AVX -> no alignment issues with PCIe 8x or 16x
 
                 if (s_axim.awvalid && s_axim.awready) begin
                    s_axim.awready      <= 1'b0;
@@ -718,7 +719,7 @@ begin
                         GPIO_REG_POST: begin
                     
                             // sw data is 32 bits aligned 
-                            /* s_axim.wdata[31:0]    -> op         - sw: 8 bits
+                            /* s_axim.wdata[31:0]    -> op         - sw: 32 bits
                                            [63:32]   -> qpn        - sw: 32 bits 
                                            [127:64]  -> originAddr - sw: 64 bits
                                            [191:128] -> targetAddr - sw: 64 bits
@@ -732,20 +733,14 @@ begin
                             axis_by_tx_metadata_data[6:3]     <= s_axim.wdata[35:32];
                             axis_by_tx_metadata_data[26:7]    <= 0;                                        // 20 bits
 
-                            // originAddr - use only 48 b from the sw, that last 2 bits are set to zero
-                            // [127:64] 
-                            axis_by_tx_metadata_data[28:27]   <= 0;                                        // 2 bits
-                            axis_by_tx_metadata_data[74:29]   <= s_axim.wdata[113:66];
+                            // originAddr - use only 48 b from the sw  [127:64] 
+                            axis_by_tx_metadata_data[74:27]   <= s_axim.wdata[113:64];
 
-                            // targetAddr - use only 48 b from the sw, that last 2 bits are set to zero
-                            // [191:128]
-                            axis_by_tx_metadata_data[76:75]   <= 0;                                        // 2 bits
-                            axis_by_tx_metadata_data[122:77]  <= s_axim.wdata[177:130];
+                            // targetAddr - use only 48 b from the sw  [191:128]
+                            axis_by_tx_metadata_data[122:75]  <= s_axim.wdata[177:128];
 
-                            // size
-                            // [255:192]
-                            axis_by_tx_metadata_data[125:123] <= 0;                                        // 3 bits
-                            axis_by_tx_metadata_data[154:126] <= s_axim.wdata[223:195];
+                            // size  [255:192]
+                            axis_by_tx_metadata_data[154:123] <= s_axim.wdata[223:192];
 
                             axis_by_tx_metadata_valid         <= 1'b1;
                             s_axim.bvalid                  <= 1'b0;
