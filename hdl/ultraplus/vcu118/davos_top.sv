@@ -47,8 +47,6 @@ module davos_top
     input wire             resetn_0_nb,
     input wire             gt_refclk_p,
     input wire             gt_refclk_n,
-    input wire             clk_161mhz_p,
-    input wire             clk_161mhz_n,
 
     //156.25MHz user clock
     //input wire             uclk_p,
@@ -204,15 +202,7 @@ assign ddr_calib_complete = &ddr_init_calib_complete[2];
 /*
  * Clock Generation
  */
-wire clk_161mhz;
-IBUFDS #(
-    .DQS_BIAS("FALSE")  // (FALSE, TRUE)
-)
-clk_161mhz_BUFG_inst (
-    .O(clk_161mhz),   // 1-bit output: Buffer output
-    .I(clk_161mhz_p),   // 1-bit input: Diff_p buffer input (connect directly to top-level port)
-    .IB(clk_161mhz_n)  // 1-bit input: Diff_n buffer input (connect directly to top-level port)
-);
+wire clk_161mhz_ref_int;
 
 wire clk_125mhz_mmcm_out;
 
@@ -261,7 +251,7 @@ MMCME4_BASE #(
     .CLKOUT4_CASCADE("FALSE")
 )
 clk_mmcm_inst (
-    .CLKIN1(clk_161mhz),
+    .CLKIN1(clk_161mhz_ref_int),
     .CLKFBIN(mmcm_clkfb),
     .RST(mmcm_rst),
     .PWRDWN(1'b0),
@@ -511,6 +501,7 @@ network_module_100g network_module_inst
     
     .gt_refclk_p(gt_refclk_p),
     .gt_refclk_n(gt_refclk_n),
+    .gt_ref_clk_out(clk_161mhz_ref_int), // output
     
     .gt_rxp_in(gt_rxp_in),
     .gt_rxn_in(gt_rxn_in),

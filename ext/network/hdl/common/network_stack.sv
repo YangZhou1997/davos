@@ -1473,16 +1473,20 @@ reg[3:0] board_number;
 
 always @(posedge net_clk) begin
     if (~net_aresetn) begin
-        local_ip_address <= 32'hD1D4010B;
+        // local_ip_address <= 32'hD1D4010B; // 10.1.212.209
+        local_ip_address <= 32'h0500A8C0; // 192.168.0.5
         board_number <= 0;
     end
     else begin
-        if (set_ip_addr_valid) begin
-            local_ip_address[7:0] <= set_ip_addr_data[31:24];
-            local_ip_address[15:8] <= set_ip_addr_data[23:16];
-            local_ip_address[23:16] <= set_ip_addr_data[15:8];
-            local_ip_address[31:24] <= set_ip_addr_data[7:0];
-        end
+        // hacking to use 
+        // if (set_ip_addr_valid) begin
+        //     local_ip_address[7:0] <= set_ip_addr_data[31:24];
+        //     local_ip_address[15:8] <= set_ip_addr_data[23:16];
+        //     local_ip_address[23:16] <= set_ip_addr_data[15:8];
+        //     local_ip_address[31:24] <= set_ip_addr_data[7:0];
+        // end
+        // local_ip_address <= 32'hD1D4010B; // 10.1.212.209
+        local_ip_address <= 32'h0500A8C0; // 192.168.0.5
         if (set_board_number_valid) begin
             board_number <= set_board_number_data;
         end

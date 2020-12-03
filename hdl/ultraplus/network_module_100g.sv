@@ -38,6 +38,7 @@ module network_module_100g
     
     input wire          gt_refclk_p,
     input wire          gt_refclk_n,
+    output wire         gt_ref_clk_out,
     
 	input  wire [3:0] gt_rxp_in,
 	input  wire [3:0] gt_rxn_in,
@@ -93,6 +94,8 @@ cmac_axis_wrapper cmac_wrapper_inst
     .gt_txn_out(gt_txn_out),
     .gt_ref_clk_p(gt_refclk_p),
     .gt_ref_clk_n(gt_refclk_n),
+    .gt_ref_clk_out(gt_ref_clk_out), // output
+
     .init_clk(dclk),
     .sys_reset(sys_reset),
 

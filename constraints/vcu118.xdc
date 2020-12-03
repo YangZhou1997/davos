@@ -28,13 +28,9 @@ set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 
 ### These are sample constraints, please use correct constraints for your device
 ### update the gt_refclk pin location accordingly and un-comment the below two lines
-# 156MHz
-set_property PACKAGE_PIN M10 [get_ports gt_refclk_n]
-set_property PACKAGE_PIN M11 [get_ports gt_refclk_p]
-
 # 161MHz
-set_property PACKAGE_PIN K10 [get_ports clk_161mhz_n]
-set_property PACKAGE_PIN K11 [get_ports clk_161mhz_p]
+set_property PACKAGE_PIN K10 [get_ports gt_refclk_n]
+set_property PACKAGE_PIN K11 [get_ports gt_refclk_p]
 
 #QSPF28 Connector1
 # set_property	PACKAGE_PIN	N3		[get_ports 	{gt_rxn_in[0]}	] ; 

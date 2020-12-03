@@ -34,6 +34,7 @@ module cmac_axis_wrapper
     input wire                 init_clk,
     input wire                 gt_ref_clk_p,
     input wire                 gt_ref_clk_n,
+    output wire                gt_ref_clk_out, // output
     input wire [3:0]           gt_rxp_in,
     input wire [3:0]           gt_rxn_in,
     output logic [3:0]          gt_txn_out,
@@ -314,7 +315,7 @@ cmac_usplus_axis cmac_axis_inst (
         .gt_ref_clk_p                  (gt_ref_clk_p),
         .gt_ref_clk_n                  (gt_ref_clk_n),
         .init_clk                      (init_clk),
-        .gt_ref_clk_out                (),
+        .gt_ref_clk_out                (gt_ref_clk_out), // output
         
         
         .rx_axis_tvalid                (m_rx_axis.valid),
@@ -442,10 +443,10 @@ cmac_usplus_axis cmac_axis_inst (
         .ctl_rx_enable                 (ctl_rx_enable),
         .ctl_rx_force_resync           (ctl_rx_force_resync),
         .ctl_rx_test_pattern           (1'b0),
-        // .ctl_rsfec_ieee_error_indication_mode(1'b0), // input
-        // .ctl_rx_rsfec_enable           (1'b1), // input
-        // .ctl_rx_rsfec_enable_correction(1'b1), // input
-        // .ctl_rx_rsfec_enable_indication(1'b1), // input
+        .ctl_rsfec_ieee_error_indication_mode(1'b0), // input
+        .ctl_rx_rsfec_enable           (1'b1), // input
+        .ctl_rx_rsfec_enable_correction(1'b1), // input
+        .ctl_rx_rsfec_enable_indication(1'b1), // input
         .core_rx_reset                 (1'b0), //TODO 1'b0 in example design
         .rx_clk                        (gt_txusrclk2),
         
@@ -516,7 +517,7 @@ cmac_usplus_axis cmac_axis_inst (
         
         .ctl_tx_enable                 (ctl_tx_enable),
         .ctl_tx_send_idle              (ctl_tx_send_idle),
-        // .ctl_tx_rsfec_enable           (1'b1), // input
+        .ctl_tx_rsfec_enable           (1'b1), // input
         .ctl_tx_send_rfi               (ctl_tx_send_rfi),
         .ctl_tx_send_lfi               (ctl_tx_send_lfi),
         .ctl_tx_test_pattern           (ctl_tx_test_pattern),
