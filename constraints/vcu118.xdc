@@ -20,17 +20,21 @@ set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 # set_property PACKAGE_PIN AY23 [get_ports dclk_n]
 
 # replace the above 125 MHz clock with the following 156.25 MHz clock; changing cmac_usplus GT_DRP_CLK setting accordingly
-set_property	PACKAGE_PIN	AV19		        [get_ports 	dclk_n] ; 
-set_property	IOSTANDARD		LVDS	        [get_ports 	dclk_n] ; 
-set_property	PACKAGE_PIN	AU19		        [get_ports 	dclk_p] ; 
-set_property	IOSTANDARD		LVDS	        [get_ports 	dclk_p] ; 
+# set_property	PACKAGE_PIN	AV19		        [get_ports 	dclk_n] ; 
+# set_property	IOSTANDARD		LVDS	        [get_ports 	dclk_n] ; 
+# set_property	PACKAGE_PIN	AU19		        [get_ports 	dclk_p] ; 
+# set_property	IOSTANDARD		LVDS	        [get_ports 	dclk_p] ; 
 
 
 ### These are sample constraints, please use correct constraints for your device
 ### update the gt_refclk pin location accordingly and un-comment the below two lines
+# 156MHz
+set_property PACKAGE_PIN M10 [get_ports gt_refclk_n]
+set_property PACKAGE_PIN M11 [get_ports gt_refclk_p]
+
 # 161MHz
-set_property PACKAGE_PIN K10 [get_ports gt_refclk_n]
-set_property PACKAGE_PIN K11 [get_ports gt_refclk_p]
+set_property PACKAGE_PIN K10 [get_ports clk_161mhz_n]
+set_property PACKAGE_PIN K11 [get_ports clk_161mhz_p]
 
 #QSPF28 Connector1
 # set_property	PACKAGE_PIN	N3		[get_ports 	{gt_rxn_in[0]}	] ; 
@@ -69,7 +73,14 @@ set_property	PACKAGE_PIN	R9		[get_ports 	{gt_txp_out[2]}	] ;
 set_property	PACKAGE_PIN	P7		[get_ports 	{gt_txp_out[3]}	] ; 
 
 # CPU_RESET
-set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports sys_reset]
+# set_property -dict {LOC AL20 IOSTANDARD LVCMOS12} [get_ports sys_reset]
+
+# Clocks and reset
+set_property	PACKAGE_PIN	AL20                [get_ports  resetn_0_nb] ; 
+set_property	IOSTANDARD		LVCMOS12	    [get_ports 	resetn_0_nb] ; 
+
+# Reset false path
+set_false_path -from [get_ports resetn_0_nb]
 
 ###Board constraints to be added here
 ### Below XDC constraints are for VCU108 board with xcvu095-ffva2104-2-e-es2 device
@@ -81,7 +92,7 @@ set_property -dict {LOC BB21 IOSTANDARD LVCMOS12 SLEW SLOW DRIVE 8} [get_ports {
 set_property -dict {LOC BA20 IOSTANDARD LVCMOS12 SLEW SLOW DRIVE 8} [get_ports {led[2]}]
 
 
-create_clock -period 6.400 -name dclk_clk [get_pins dclk_BUFG_inst/O]
+create_clock -period 8.000 -name dclk_clk [get_pins clk_125mhz_bufg_inst/O]
 
 
 
@@ -95,22 +106,22 @@ create_clock -period 6.400 -name dclk_clk [get_pins dclk_BUFG_inst/O]
 
 
 
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] 6.206
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] 6.206
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] 6.400
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] 6.400
 
 
-set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] 6.400
-set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] 6.400
+set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] 8.000
+set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] 8.000
 
 
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
-set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks dclk_clk] 6.400
+set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks dclk_clk] 6.400
 
 
 ###
 # DDR 0
 ###
-# 250 MHZ clk
+# 300 MHZ clk
 set_property	PACKAGE_PIN	AY38		        [get_ports 	c0_sys_clk_n] ; 
 set_property	IOSTANDARD		DIFF_POD12_DCI	[get_ports 	c0_sys_clk_n] ; 
 set_property	PACKAGE_PIN	AY37		        [get_ports 	c0_sys_clk_p] ; 
@@ -267,7 +278,7 @@ set_property -dict {PACKAGE_PIN BD26 IOSTANDARD DIFF_POD12_DCI } [get_ports c0_d
 ###
 # DDR 1
 ###
-# 250 MHZ clk
+# 300 MHZ clk
 set_property	PACKAGE_PIN	AW19		        [get_ports 	c1_sys_clk_n] ; 
 set_property	IOSTANDARD		LVDS	        [get_ports 	c1_sys_clk_n] ; 
 set_property	PACKAGE_PIN	AW20		        [get_ports 	c1_sys_clk_p] ; 
@@ -432,11 +443,13 @@ set_property -dict {PACKAGE_PIN BE22 IOSTANDARD DIFF_POD12_DCI } [get_ports c1_d
 set_property	PACKAGE_PIN	BD21		    [get_ports 	perst_n	] ; 
 set_property	IOSTANDARD		LVCMOS12	[get_ports 	perst_n	] ; 
 
+# Set false path
+set_false_path -from [get_ports perst_n]
+
 set_property	PACKAGE_PIN	AM10	        [get_ports 	{pcie_clk_n}] ; 
 set_property	PACKAGE_PIN	AM11            [get_ports 	{pcie_clk_p}] ; 
 
 
-#set_false_path -from [get_ports perst_n]
 
 
 

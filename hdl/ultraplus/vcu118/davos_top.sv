@@ -44,11 +44,11 @@ module davos_top
     output wire [4-1:0] gt_txp_out,
     output wire [4-1:0] gt_txn_out,
 `endif
-    input wire             sys_reset,
+    input wire             resetn_0_nb,
     input wire             gt_refclk_p,
     input wire             gt_refclk_n,
-    input wire             dclk_p,
-    input wire             dclk_n,
+    input wire             clk_161mhz_p,
+    input wire             clk_161mhz_n,
 
     //156.25MHz user clock
     //input wire             uclk_p,
@@ -204,15 +204,91 @@ assign ddr_calib_complete = &ddr_init_calib_complete[2];
 /*
  * Clock Generation
  */
-wire dclk;
-    IBUFDS #(
+wire clk_161mhz;
+IBUFDS #(
     .DQS_BIAS("FALSE")  // (FALSE, TRUE)
 )
-dclk_BUFG_inst (
-    .O(dclk),   // 1-bit output: Buffer output
-    .I(dclk_p),   // 1-bit input: Diff_p buffer input (connect directly to top-level port)
-    .IB(dclk_n)  // 1-bit input: Diff_n buffer input (connect directly to top-level port)
+clk_161mhz_BUFG_inst (
+    .O(clk_161mhz),   // 1-bit output: Buffer output
+    .I(clk_161mhz_p),   // 1-bit input: Diff_p buffer input (connect directly to top-level port)
+    .IB(clk_161mhz_n)  // 1-bit input: Diff_n buffer input (connect directly to top-level port)
 );
+
+wire clk_125mhz_mmcm_out;
+
+// Internal 125 MHz clock
+wire clk_125mhz_int;
+
+wire mmcm_rst;
+wire mmcm_locked;
+wire mmcm_clkfb;
+
+// MMCM instance
+// 161.13 MHz in, 125 MHz out
+// PFD range: 10 MHz to 500 MHz
+// VCO range: 800 MHz to 1600 MHz
+// M = 64, D = 11 sets Fvco = 937.5 MHz (in range)
+// Divide by 7.5 to get output frequency of 125 MHz
+MMCME4_BASE #(
+    .BANDWIDTH("OPTIMIZED"),
+    .CLKOUT0_DIVIDE_F(7.5),
+    .CLKOUT0_DUTY_CYCLE(0.5),
+    .CLKOUT0_PHASE(0),
+    .CLKOUT1_DIVIDE(1),
+    .CLKOUT1_DUTY_CYCLE(0.5),
+    .CLKOUT1_PHASE(0),
+    .CLKOUT2_DIVIDE(1),
+    .CLKOUT2_DUTY_CYCLE(0.5),
+    .CLKOUT2_PHASE(0),
+    .CLKOUT3_DIVIDE(1),
+    .CLKOUT3_DUTY_CYCLE(0.5),
+    .CLKOUT3_PHASE(0),
+    .CLKOUT4_DIVIDE(1),
+    .CLKOUT4_DUTY_CYCLE(0.5),
+    .CLKOUT4_PHASE(0),
+    .CLKOUT5_DIVIDE(1),
+    .CLKOUT5_DUTY_CYCLE(0.5),
+    .CLKOUT5_PHASE(0),
+    .CLKOUT6_DIVIDE(1),
+    .CLKOUT6_DUTY_CYCLE(0.5),
+    .CLKOUT6_PHASE(0),
+    .CLKFBOUT_MULT_F(64),
+    .CLKFBOUT_PHASE(0),
+    .DIVCLK_DIVIDE(11),
+    .REF_JITTER1(0.010),
+    .CLKIN1_PERIOD(6.206),
+    .STARTUP_WAIT("FALSE"),
+    .CLKOUT4_CASCADE("FALSE")
+)
+clk_mmcm_inst (
+    .CLKIN1(clk_161mhz),
+    .CLKFBIN(mmcm_clkfb),
+    .RST(mmcm_rst),
+    .PWRDWN(1'b0),
+    .CLKOUT0(clk_125mhz_mmcm_out),
+    .CLKOUT0B(),
+    .CLKOUT1(),
+    .CLKOUT1B(),
+    .CLKOUT2(),
+    .CLKOUT2B(),
+    .CLKOUT3(),
+    .CLKOUT3B(),
+    .CLKOUT4(),
+    .CLKOUT5(),
+    .CLKOUT6(),
+    .CLKFBOUT(mmcm_clkfb),
+    .CLKFBOUTB(),
+    .LOCKED(mmcm_locked)
+);
+
+BUFG
+clk_125mhz_bufg_inst (
+    .I(clk_125mhz_mmcm_out),
+    .O(clk_125mhz_int)
+);
+
+wire dclk;
+assign dclk = clk_125mhz_int;
 
 //Network reset
 BUFG bufg_aresetn(
@@ -228,6 +304,16 @@ IBUFDS_GTE4 pcie_ibuf_inst (
     .I(pcie_clk_p),        // 1-bit input: Refer to Transceiver User Guide
     .IB(pcie_clk_n)        // 1-bit input: Refer to Transceiver User Guide
 );
+
+wire resetn_0;
+// IO buffers
+IBUF rst_IBUF_inst (
+    .O(resetn_0), // Buffer output
+    .I(resetn_0_nb) // Buffer input (connect directly to top-level port)
+);
+
+wire sys_reset;
+assign sys_reset = ~resetn_0;
 
 /*
  * LEDs

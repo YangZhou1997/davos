@@ -442,10 +442,10 @@ cmac_usplus_axis cmac_axis_inst (
         .ctl_rx_enable                 (ctl_rx_enable),
         .ctl_rx_force_resync           (ctl_rx_force_resync),
         .ctl_rx_test_pattern           (1'b0),
-        .ctl_rsfec_ieee_error_indication_mode(1'b0), // input
-        .ctl_rx_rsfec_enable           (1'b1), // input
-        .ctl_rx_rsfec_enable_correction(1'b1), // input
-        .ctl_rx_rsfec_enable_indication(1'b1), // input
+        // .ctl_rsfec_ieee_error_indication_mode(1'b0), // input
+        // .ctl_rx_rsfec_enable           (1'b1), // input
+        // .ctl_rx_rsfec_enable_correction(1'b1), // input
+        // .ctl_rx_rsfec_enable_indication(1'b1), // input
         .core_rx_reset                 (1'b0), //TODO 1'b0 in example design
         .rx_clk                        (gt_txusrclk2),
         
@@ -516,7 +516,7 @@ cmac_usplus_axis cmac_axis_inst (
         
         .ctl_tx_enable                 (ctl_tx_enable),
         .ctl_tx_send_idle              (ctl_tx_send_idle),
-        .ctl_tx_rsfec_enable           (1'b1), // input
+        // .ctl_tx_rsfec_enable           (1'b1), // input
         .ctl_tx_send_rfi               (ctl_tx_send_rfi),
         .ctl_tx_send_lfi               (ctl_tx_send_lfi),
         .ctl_tx_test_pattern           (ctl_tx_test_pattern),

@@ -28,11 +28,59 @@ generate_target {instantiation_template} [get_files $device_ip_dir/ethernet_fram
 update_compile_order -fileset sources_1
 
 
-#100G
+#100G for 2019.1
 create_ip -name cmac_usplus -vendor xilinx.com -library ip -version 2.6 -module_name cmac_usplus_axis -dir $device_ip_dir
-set_property -dict [list CONFIG.CMAC_CAUI4_MODE {1} CONFIG.NUM_LANES {4} CONFIG.GT_REF_CLK_FREQ {161.1328125} CONFIG.USER_INTERFACE {AXIS} CONFIG.GT_DRP_CLK {156.25} CONFIG.TX_FLOW_CONTROL {0} CONFIG.RX_FLOW_CONTROL {0} CONFIG.INCLUDE_RS_FEC {1} CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y8} CONFIG.GT_GROUP_SELECT {X1Y44~X1Y47} CONFIG.LANE1_GT_LOC {X1Y44} CONFIG.LANE2_GT_LOC {X1Y45} CONFIG.LANE3_GT_LOC {X1Y46} CONFIG.LANE4_GT_LOC {X1Y47} CONFIG.LANE5_GT_LOC {NA} CONFIG.LANE6_GT_LOC {NA} CONFIG.LANE7_GT_LOC {NA} CONFIG.LANE8_GT_LOC {NA} CONFIG.LANE9_GT_LOC {NA} CONFIG.LANE10_GT_LOC {NA} CONFIG.Component_Name {cmac_usplus_axis}] [get_ips cmac_usplus_axis]
+set_property -dict [list \
+    CONFIG.CMAC_CAUI4_MODE {1} \
+    CONFIG.NUM_LANES {4} \
+    CONFIG.GT_REF_CLK_FREQ {156.25} \
+    CONFIG.USER_INTERFACE {AXIS} \
+    CONFIG.GT_DRP_CLK {125.00} \
+    CONFIG.TX_FLOW_CONTROL {0} \
+    CONFIG.RX_FLOW_CONTROL {0} \
+    CONFIG.INCLUDE_RS_FEC {1} \
+    CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y8} \
+    CONFIG.GT_GROUP_SELECT {X1Y44~X1Y47} \
+    CONFIG.LANE1_GT_LOC {X1Y44} \
+    CONFIG.LANE2_GT_LOC {X1Y45} \
+    CONFIG.LANE3_GT_LOC {X1Y46} \
+    CONFIG.LANE4_GT_LOC {X1Y47} \
+    CONFIG.LANE5_GT_LOC {NA} \
+    CONFIG.LANE6_GT_LOC {NA} \
+    CONFIG.LANE7_GT_LOC {NA} \
+    CONFIG.LANE8_GT_LOC {NA} \
+    CONFIG.LANE9_GT_LOC {NA} \
+    CONFIG.LANE10_GT_LOC {NA} \
+    CONFIG.Component_Name {cmac_usplus_axis}
+] [get_ips cmac_usplus_axis]
 generate_target {instantiation_template} [get_files $device_ip_dir/cmac_usplus_axis/cmac_usplus_axis.xci]
 update_compile_order -fileset sources_1
+
+# for 2019.2
+# create_ip -name cmac_usplus -vendor xilinx.com -library ip -version 3.0 -module_name cmac_usplus_axis -dir $device_ip_dir
+# set_property -dict {
+#     CONFIG.CMAC_CAUI4_MODE {1}
+#     CONFIG.NUM_LANES {4x25}
+#     CONFIG.GT_REF_CLK_FREQ {156.25}
+#     CONFIG.USER_INTERFACE {AXIS}
+#     CONFIG.GT_DRP_CLK {125.00}
+#     CONFIG.INCLUDE_RS_FEC {1}
+#     CONFIG.CMAC_CORE_SELECT {CMACE4_X0Y8}
+#     CONFIG.GT_GROUP_SELECT {X1Y44~X1Y47}
+#     CONFIG.LANE1_GT_LOC {X1Y44}
+#     CONFIG.LANE2_GT_LOC {X1Y45}
+#     CONFIG.LANE3_GT_LOC {X1Y46}
+#     CONFIG.LANE4_GT_LOC {X1Y47}
+#     CONFIG.LANE5_GT_LOC {NA}
+#     CONFIG.LANE6_GT_LOC {NA}
+#     CONFIG.LANE7_GT_LOC {NA}
+#     CONFIG.LANE8_GT_LOC {NA}
+#     CONFIG.LANE9_GT_LOC {NA}
+#     CONFIG.LANE10_GT_LOC {NA}
+#     CONFIG.Component_Name {cmac_usplus_axis}
+# } [get_ips cmac_usplus_axis]
+# generate_target {instantiation_template} [get_files $device_ip_dir/cmac_usplus_axis/cmac_usplus_axis.xci]
+# update_compile_order -fileset sources_1
 
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_pkg_fifo_512 -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {64} CONFIG.FIFO_MODE {2} CONFIG.HAS_TKEEP {1} CONFIG.HAS_TLAST {1} CONFIG.Component_Name {axis_pkg_fifo_512}] [get_ips axis_pkg_fifo_512]
