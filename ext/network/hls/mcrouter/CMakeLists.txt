@@ -24,8 +24,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/../../cma
 # @yang, using 100G U250
 set(FPGA_PART xcu250-figd2104-2L-e CACHE STRING "FPGA part")
 set(DATA_WIDTH 64 CACHE STRING "Width of data path in bytes")
-# @yang, using 322Mhz
-set(CLOCK_PERIOD 3.103 CACHE STRING "Target clock period in nanoseconds")
+set(CLOCK_PERIOD 3.2 CACHE STRING "Target clock period in nanoseconds")
 
 
 # Find Xilinx Vivado HLS

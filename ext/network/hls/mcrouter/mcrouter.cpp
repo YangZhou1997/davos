@@ -43,8 +43,8 @@ void open_port(
 
 	switch (state){
     	case 0:
-            // mcrouter uses 5000 port
-    		listenPort.write(5000);
+            // mcrouter uses 5001 port
+    		listenPort.write(5001);
     		state = 1;
     		break;
     	case 1:
@@ -406,22 +406,22 @@ void proxy(
                 msgHeaderFifo.read(currMsgHeader);
                 msgBodyFifo.read(currMsgBody);
                 switch(currMsgHeader.opcode){
-                    case 0x00: { // GET -> picks one memcached based on key hashing. 
+                    case PROTOCOL_BINARY_CMD_GET: { // GET -> picks one memcached based on key hashing. 
                         keyFifo.write(currMsgBody.key); // calculating hashing
                         proxyFsmState = GET_HASH;
                         break;
                     }
-                    case 0x01: { // SET -> sets all memcached
+                    case PROTOCOL_BINARY_CMD_SET: { // SET -> sets all memcached
                         cmdFifo.write(0); // get current total session count
                         proxyFsmState = SET_RANGE;
                         break;
                     }
-                    case 0x30: { // RGET
+                    case PROTOCOL_BINARY_CMD_RGET: { // RGET
         				multiQueue_pop_req.write(mqPopReq(POP, currSessionID)); // get request msg ID;
                         proxyFsmState = RSP_MQ;
                         break;
                     }
-                    case 0x31: { // RSet
+                    case PROTOCOL_BINARY_CMD_RSET: { // RSet
         				multiQueue_pop_req.write(mqPopReq(POP, currSessionID));
                         proxyFsmState = RSP_MQ;
                         break;
@@ -732,7 +732,7 @@ void mcrouter(
 	hls::stream<openStatus>&		openConStatus,
     // for mcrouter closing a connection
 	hls::stream<ap_uint<16> >&		closeConnection,
-    // for mcrouter sending data
+    // for mcrouter sending data out
 	hls::stream<appTxMeta>&			txMetaData,
 	hls::stream<net_axis<DATA_WIDTH> >&	txData,
 	hls::stream<appTxRsp>&			txStatus
