@@ -27,6 +27,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, Inc.
 ************************************************/
 
+#include <iostream>
 #include "../axi_utils.hpp"
 #include "../toe/toe.hpp"
 #include "hash_table_16_1024/hash_table_16_1024.hpp"
@@ -35,6 +36,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 
 #define DATA_WIDTH 512
 #define MAX_CONNECTED_SESSIONS 512
+
+using namespace std;
 
 struct msgHeader {
     ap_uint<8> magic;
@@ -59,10 +62,21 @@ struct msgHeader {
         cas = w(63, 0);
     }
     ap_uint<24*8> output_word(){
-        return (cas, opaque, bodyLen, status, dataType, extLen, keyLen, opcode, magic);
+        return (magic, opcode, keyLen, extLen, dataType, status, bodyLen, opaque, cas);
     }
     ap_uint<32> val_len(){
         return bodyLen-extLen-keyLen;
+    }
+    void display(){
+        cout << "magic " << hex << magic << endl;
+        cout << "opcode " << hex << opcode << endl;
+        cout << "keyLen " << dec << keyLen << endl;
+        cout << "extlen " << dec << extLen << endl;
+        cout << "dataType " << dec << dataType << endl;
+        cout << "status " << dec << status << endl;
+        cout << "bodyLen " << dec << bodyLen << endl;
+        cout << "opaque " << hex << opaque << endl;
+        cout << "cas " << dec << cas << endl;
     }
 };
 
@@ -97,7 +111,7 @@ struct msgBody {
         val = w(471, 0);
     }
     ap_uint<1024> output_word(){
-        return (val, key, ext, valPtr, keyPtr, extPtr, valInl, keyInl, extInl, msgID);
+        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, ext, key, val);
     }
 };
 
@@ -106,11 +120,22 @@ struct sessionState {
     ap_uint<5>      currLen; // current len of value msg header. 
     ap_uint<1>      parsingHeader; // indicate whether parsing header is done
     // 
+    ap_uint<8>			currHdrLen;
     ap_uint<8>			currExtLen;
     ap_uint<16>			currKeyLen;
     ap_uint<32>			currValLen;
     ap_uint<2>          parsingBody; // indicating whether parsing ext/key/val is done. 
     sessionState() {}
+    void reset() {
+        currLen = 0;
+        parsingHeader = 0;
+        
+        currHdrLen = 0;
+        currExtLen = 0;
+        currKeyLen = 0;
+        currValLen = 0;
+        parsingBody = 0;
+    }
 };
 
 struct msgContext {
@@ -126,7 +151,7 @@ struct msgContext {
         srcSessionID = w(15, 0);
     }
     ap_uint<32> output_word(){
-        return (srcSessionID, numRsp);
+        return (numRsp, srcSessionID);
     }
 };
 
@@ -238,15 +263,15 @@ typedef enum {
 
 union protocol_binary_request_header{
     struct request_t{
-        ap_uint<8> magic;
-        ap_uint<8> opcode;
-        ap_uint<16> keylen;
-        ap_uint<8> extlen;
-        ap_uint<8> datatype;
-        ap_uint<16> reserved;
-        ap_uint<32> bodylen;
-        ap_uint<32> opaque;
-        ap_uint<64> cas;
+        uint8_t magic;
+        uint8_t opcode;
+        uint16_t keylen;
+        uint8_t extlen;
+        uint8_t datatype;
+        uint16_t reserved;
+        uint32_t bodylen;
+        uint32_t opaque;
+        uint64_t cas;
     } request;
     uint8_t bytes[24];
     protocol_binary_request_header() {}
