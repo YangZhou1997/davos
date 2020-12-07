@@ -33,6 +33,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 #include "hash_table_16_1024/hash_table_16_1024.hpp"
 #include "hash_table_32_32/hash_table_32_32.hpp"
 #include "multi_queue/multi_queue.hpp"
+#include <arpa/inet.h>
 
 #define DATA_WIDTH 512
 #define MAX_CONNECTED_SESSIONS 512
@@ -276,6 +277,18 @@ union protocol_binary_request_header{
     uint8_t bytes[24];
     protocol_binary_request_header() {}
     ~protocol_binary_request_header() {}
+    void display(){
+        // cout << uint8_t will be treated as char. 
+        cout << "magic " << hex << (uint16_t)request.magic << endl;
+        cout << "opcode " << hex << (uint16_t)request.opcode << endl;
+        cout << "keyLen " << dec << htons(request.keylen) << endl;
+        cout << "extlen " << dec << (uint16_t)request.extlen << endl;
+        cout << "dataType " << dec << (uint16_t)request.datatype << endl;
+        cout << "reserved " << dec << htons(request.reserved) << endl;
+        cout << "bodyLen " << dec << htonl(request.bodylen) << endl;
+        cout << "opaque " << hex << htonl(request.opaque) << endl;
+        cout << "cas " << dec << request.cas << endl;
+    }
 };
 
 union protocol_binary_response_header{

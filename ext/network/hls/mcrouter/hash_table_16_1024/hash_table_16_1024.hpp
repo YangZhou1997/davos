@@ -31,7 +31,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // #include <hash_table_config.hpp>
 namespace hash_table_16_1024 {
 
-const uint32_t MAX_NUMBER_OF_ENTRIES = 1000;
+const uint32_t MAX_NUMBER_OF_ENTRIES = 10000;
 #include <math.h>
 
 //Copied from hlslib by Johannes de Fine Licht https://github.com/definelicht/hlslib/blob/master/include/hlslib/xilinx/Utility.h

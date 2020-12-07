@@ -166,8 +166,7 @@ void notification_handler(
         // }
 	}
 }
-// generating globally unique msgID. 
-static ap_uint<32> currentMsgID = 0;
+
 #define MAX_SESSION_NUM ((1 << 16) - 1)
 
 void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
@@ -175,7 +174,6 @@ void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHea
 
 #pragma HLS INLINE
 
-    std::cout << "parsingMsgBody" << std::endl;
     ap_uint<16> wordPos = (initValidLen - currValidLen)*8;
 
     switch(currSessionState.parsingBody){
@@ -268,6 +266,8 @@ void extract_msg(
 ){
 #pragma HLS PIPELINE II=3
 #pragma HLS INLINE off
+    // generating globally unique msgID. 
+    static ap_uint<32> currentMsgID = 0;
 
     // static value gets inited to zero by default. 
     static sessionState sessionStateTable[MAX_SESSION_NUM];
@@ -275,6 +275,7 @@ void extract_msg(
     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
 
     enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
+    char* axisFsmName[4] = {"IDLE", "RECOVER_STATE", "READ_WORD", "PARSE_WORD"};
     static axisFsmType currAxisState = IDLE;
 
 	static ap_uint<16>      currSessionID; // valid when currAxisState becomes on-going
@@ -286,12 +287,12 @@ void extract_msg(
     static ap_uint<16>       initValidLen;
     static ap_uint<16>       totalLen;
     
-
+    std::cout << "mcrouter::extract_msg fsmState " << axisFsmName[(int)currAxisState] << std::endl;
     switch (currAxisState){
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
                 rxMetaData.read(currSessionID);
-                std::cout << currSessionID << std::endl;
+                std::cout << "mcrouter::extract_msg rxMetaData.sessionID " << currSessionID << std::endl;
                 currSessionState = sessionStateTable[currSessionID];
                 currAxisState = READ_WORD;
 
@@ -309,7 +310,7 @@ void extract_msg(
                 else{
                     s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_INSERT, currSessionID, currMsgBody.output_word(), 0));
                 }
-                std::cout << response.hit << std::endl;
+                // std::cout << response.hit << std::endl;
                 // we should expect the hash table is enough to handle all active connections; 
                 currAxisState = READ_WORD;
             }
@@ -334,6 +335,8 @@ void extract_msg(
                     if(currValidLen >= requiredHeaderLen){
                         currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, 0) = currWord.data(DATA_WIDTH-1-wordPos, DATA_WIDTH-requiredHeaderLen*8-wordPos);
                         currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+                        
+                        std::cout << "extract_msg receives data" << std::endl;
                         currMsgHeader.display();
 
                         msgHeaderFifo.write(currMsgHeader);
@@ -365,7 +368,7 @@ void extract_msg(
                 currMsgBody.msgID = currentMsgID;
                 currentMsgID += 1;
                 currSessionState.reset(); // ready to parse next message
-                std::cout << "writing currMsgBody" << std::endl;
+                std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                 msgBodyFifo.write(currMsgBody);
             }
             
@@ -440,13 +443,14 @@ void proxy(
     static ap_uint<16> currSessionCount;
     static ap_uint<16> currSessionCount_idx;
     
-    enum proxy_fsmType {IDLE, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_WRITEOUT, RSP_MQ, RSP_HT};
-    
+    enum proxy_fsmType {IDLE=0, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_WRITEOUT, RSP_MQ, RSP_HT, RSP_CHECKHT};
+    char * proxy_fsmName[10] = {"IDLE", "GET_HASH", "GET_DEST", "GET_WRITEOUT", "SET_RANGE", "SET_CHECKHT", "SET_WRITEOUT", "RSP_MQ", "RSP_HT", "RSP_CHECKHT"};
+
     static proxy_fsmType proxyFsmState = IDLE;
 
+    std::cout << "mcrouter::proxy fsmState " << proxy_fsmName[(int)proxyFsmState] << std::endl;
     switch (proxyFsmState){
         case IDLE:{
-            std::cout << "IDLE" << std::endl;
             if(!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty()){
                 sessionIdFifo.read(currSessionID);
                 msgHeaderFifo.read(currMsgHeader);
@@ -478,7 +482,6 @@ void proxy(
         }
         case GET_HASH:{
             if(!hashFifo.empty()){
-                std::cout << "GET_HASH" << std::endl;
                 ap_uint<32> hashVal = hashFifo.read();
                 mc_hashValFifo.write(hashVal);
                 proxyFsmState = GET_DEST;
@@ -487,11 +490,12 @@ void proxy(
         }
         case GET_DEST:{
             if(!sessionIdFifo2.empty()){
-                std::cout << "GET_DEST" << std::endl;
                 currSessionID_dst = sessionIdFifo2.read();
                 mqInsertReq<ap_uint<32> > insertReq(currSessionID_dst, currMsgBody.msgID);
         		multiQueue_push.write(insertReq);
                 msgContext srcMsgContext(1, currSessionID);
+
+                std::cout << "GET_DEST currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                 s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_INSERT, currMsgBody.msgID, srcMsgContext.output_word(), 0));
                 proxyFsmState = GET_WRITEOUT;
             }
@@ -499,9 +503,7 @@ void proxy(
         }
         case GET_WRITEOUT:{
             if(!m_axis_upd_rsp.empty()){
-                std::cout << "GET_WRITEOUT" << std::endl;
                 hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
-                std::cout << "GET_WRITEOUT " << response.success << std::endl;
                 if (response.success){
                     sessionIdFifo_dst.write(currSessionID_dst);
                     msgHeaderFifo_dst.write(currMsgHeader);
@@ -509,6 +511,8 @@ void proxy(
                     proxyFsmState = IDLE;
                 }
                 else{
+                    std::cout << "response.key " << response.key << std::endl;
+                    std::cout << "response.op " << response.op << std::endl;
                     std::cerr << "[ERROR] proxy GET HT insert failed" << std::endl;
                     proxyFsmState = IDLE;
                 }
@@ -578,22 +582,36 @@ void proxy(
 
                 ap_uint<16> numRsp = srcMsgContext.numRsp;
                 static ap_uint<16> srcSessionID = srcMsgContext.srcSessionID;
+                ap_uint<32> srcMsgID = response.key;
                 
                 if(numRsp == 1){
                     srcMsgContext = msgContext(numRsp-1, srcSessionID);
-                    s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_DELETE, currMsgBody.msgID, srcMsgContext.output_word(), 0));
+                    s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_DELETE, srcMsgID, srcMsgContext.output_word(), 0));
                     sessionIdFifo_dst.write(srcSessionID);
                     msgHeaderFifo_dst.write(currMsgHeader);
                     msgBodyFifo_dst.write(currMsgBody);
-                    proxyFsmState = IDLE;
+                    proxyFsmState = RSP_CHECKHT;
                 }
                 else{
                     // update hash table numRsp; 
                     srcMsgContext = msgContext(numRsp-1, srcSessionID);
-                    s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_UPDATE, currMsgBody.msgID, srcMsgContext.output_word(), 0));
-                    proxyFsmState = IDLE;
+                    s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_UPDATE, srcMsgID, srcMsgContext.output_word(), 0));
+                    proxyFsmState = RSP_CHECKHT;
                 }
             }   
+            break;
+        }
+        case RSP_CHECKHT: {
+            if(!m_axis_upd_rsp.empty()){
+                hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
+                if (response.success){
+                    proxyFsmState = IDLE;
+                }
+                else{
+                    std::cerr << "[ERROR] proxy GET HT delete/update failed" << std::endl;
+                    proxyFsmState = IDLE;
+                }
+            }
             break;
         }
     }
@@ -632,11 +650,12 @@ void deparser(
     static ap_uint<16> loc0;
     static ap_uint<16> loc1;
         
+    char* deparser_fsmName[9] = {"txMetaData", "ext1", "ext2", "key1", "key2", "val1", "val2", "txData1", "txData2"};
+    std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)esac_fsmState] << std::endl;
 
 	switch (esac_fsmState)
 	{
 	case 0:
-        std::cout << "deparser 0" << std::endl;
 		if (!txMetaData.full() && !sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
 		{
             sessionIdFifo.read(currSessionID);
@@ -649,6 +668,8 @@ void deparser(
             std::cout << "currMsgHeader.bodyLen " << currMsgHeader.bodyLen << std::endl;
 
             hdr = currMsgHeader.output_word();
+            
+            std::cout << "deparser sends data" << std::endl;
             currMsgHeader.display();
 
             ext = currMsgBody.ext;
@@ -662,9 +683,6 @@ void deparser(
             loc0 = SENDBUF_LEN-1;
             loc1 = SENDBUF_LEN-24*8;
             sendBuf(loc0, loc1) = hdr;
-            std::cout << "sendBuf(loc0, loc0-7) = " << sendBuf(1023, 1016) << std::endl;
-
-            std::cout << "deparser txMetaData" << std::endl;
 
             txMetaData.write(appTxMeta(currSessionID, totalSendLen));
 			esac_fsmState = 1;
@@ -672,7 +690,6 @@ void deparser(
 		break;
         // sendBuf = (hdr, ext(KV_MAX_EXT_SIZE-1, KV_MAX_EXT_SIZE-extLen), key(KV_MAX_KEY_SIZE-1, KV_MAX_KEY_SIZE-keyLen), val(KV_MAX_VAL_SIZE-1, KV_MAX_VAL_SIZE-valLen) );
     case 1: 
-        std::cout << "deparser 1" << std::endl;
         if(extLen != 0){
             loc0 = loc1-1;
             loc1 -= extLen;
@@ -683,12 +700,10 @@ void deparser(
         }
         break;
     case 2: 
-        std::cout << "deparser 2" << std::endl;
         sendBuf(loc0, loc1) = ext(KV_MAX_EXT_SIZE-1,KV_MAX_EXT_SIZE-extLen);
         esac_fsmState = 3;
         break;
     case 3:
-        std::cout << "deparser 3" << std::endl;
         if(keyLen != 0){
             loc0 = loc1-1;
             loc1 -= keyLen;
@@ -699,12 +714,10 @@ void deparser(
         }
         break;
     case 4:
-        std::cout << "deparser 4" << std::endl;
         sendBuf(loc0, loc1) = key(KV_MAX_KEY_SIZE-1,KV_MAX_KEY_SIZE-keyLen);
         esac_fsmState = 5;
         break;
     case 5: 
-        std::cout << "deparser 5" << std::endl;
         if(valLen != 0){
             loc0 = loc1-1;
             loc1 -= valLen;
@@ -715,18 +728,14 @@ void deparser(
         }
         break;
     case 6: 
-        std::cout << "deparser 6" << std::endl;
         sendBuf(loc0, loc1) = val(KV_MAX_VAL_SIZE-1,KV_MAX_VAL_SIZE-valLen);
         esac_fsmState = 7;
         break;
     case 7:
-        std::cout << "deparser 7" << std::endl;
 		if (!txData.full())
 		{
             ap_uint<32> remainLen = totalSendLen - currSendLen;
             std::cout << "remainLen " << remainLen << std::endl;
-    
-            std::cout << "sendBuf(loc0, loc0-7) = " << sendBuf(1023, 1016) << std::endl;
 
             if(remainLen > DATA_WIDTH){
                 loc0 = SENDBUF_LEN-currSendLen-1;
@@ -740,8 +749,6 @@ void deparser(
                 currWord.data(DATA_WIDTH-currSendLen-1, DATA_WIDTH-currSendLen-remainLen) = sendBuf(SENDBUF_LEN-currSendLen-1, SENDBUF_LEN-currSendLen-remainLen);
                 currWord.keep = lenToKeep(remainLen/8);
                 currWord.last = 1;
-                std::cout << "currWord.data(511, 504) = " << currWord.data(511, 504) << std::endl;
-                std::cout << "currWord.data(512-1-24*8, 512-1-24*8-8) = " << currWord.data(512-1-24*8, 512-1-24*8-8) << std::endl;
                 currSendLen += remainLen;
     			txData.write(currWord);
 				esac_fsmState = 0;
@@ -749,7 +756,6 @@ void deparser(
 		}
 		break;
     case 8: {
-        std::cout << "deparser 8" << std::endl;
         currWord.data = sendBuf(loc0, loc1);
         currWord.keep = lenToKeep(DATA_WIDTH/8);
         currSendLen += DATA_WIDTH;
