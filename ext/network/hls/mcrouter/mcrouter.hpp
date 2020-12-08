@@ -81,11 +81,8 @@ struct msgHeader {
     }
 };
 
-#define KV_MAX_EXT_SIZE (5*8)
-#define KV_MAX_KEY_SIZE (40*8)
-#define KV_MAX_VAL_SIZE (1024-192-KV_MAX_EXT_SIZE-KV_MAX_KEY_SIZE)
-// 59*8
-
+#define MAX_BODY_LEN (1024-35-48*3)
+#define MAX_KEY_LEN (40*8)
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID
     ap_uint<1>                  extInl; // indicating if extra data is stored inline.
@@ -94,10 +91,7 @@ struct msgBody {
     ap_uint<48>                 extPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<13>                 unused; // make sure SENDBUF_LEN is within 1024 bits
-    ap_uint<KV_MAX_EXT_SIZE>    ext;
-    ap_uint<KV_MAX_KEY_SIZE>    key;
-    ap_uint<KV_MAX_VAL_SIZE>    val;
+    ap_uint<MAX_BODY_LEN>       body;
     msgBody() {}
     void consume_word(ap_uint<1024>& w){
         msgID = w(1023, 992);
@@ -107,36 +101,42 @@ struct msgBody {
         extPtr = w(988, 941);
         keyPtr = w(940, 893);
         valPtr = w(892, 845);
-        unused = w(844, 832);
-        ext = w(831, 792);
-        key = w(791, 472);
-        val = w(471, 0);
+        body = w(844, 0);
     }
     ap_uint<1024> output_word(){
-        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, ext, key, val);
+        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, body);
+    }
+    void reset(){
+        msgID = 0;
+        extInl = 0;
+        keyInl = 0;
+        valInl = 0;
+        extPtr = 0;
+        keyPtr = 0;
+        valPtr = 0;
+        body = 0;
     }
 };
 
+#define MEMCACHED_HDRLEN 24 // bytes
 struct sessionState {
-    ap_uint<24*8>   msgHeaderBuff; // assembling buffer for memcached message header 
-    ap_uint<5>      currLen; // current len of value msg header. 
-    ap_uint<1>      parsingHeader; // indicate whether parsing header is done
-    // 
+    ap_uint<MEMCACHED_HDRLEN*8>       msgHeaderBuff; // assembling buffer for memcached message header 
+    
+    ap_uint<1>          parsingHeaderState; // indicate whether parsing header is done
+    ap_uint<1>          parsingBodyState; // indicating whether parsing body is done. 
+
+    ap_uint<32>         requiredLen; // required length of header+body 
     ap_uint<8>			currHdrLen;
-    ap_uint<8>			currExtLen;
-    ap_uint<16>			currKeyLen;
-    ap_uint<32>			currValLen;
-    ap_uint<2>          parsingBody; // indicating whether parsing ext/key/val is done. 
+    ap_uint<32>			currBodyLen;
+    
     sessionState() {}
     void reset() {
-        currLen = 0;
-        parsingHeader = 0;
-        
+        parsingHeaderState = 0;
+        parsingBodyState = 0;
+
+        requiredLen = 0;
         currHdrLen = 0;
-        currExtLen = 0;
-        currKeyLen = 0;
-        currValLen = 0;
-        parsingBody = 0;
+        currBodyLen = 0;
     }
 };
 
@@ -156,16 +156,6 @@ struct msgContext {
         return (numRsp, srcSessionID);
     }
 };
-
-// enum healthCmdType {GET_SESSION_COUNT, GET_SESSIONID_HASH, GET_SESSIONID_IDX};
-
-// struct healthReq {
-//     healthCmdType cmd;
-//     ap_uint<16> val;
-//     healthReq() {}
-//     healthReq(healthCmdType _cmd, ap_uint<16> _val): 
-//         cmd(_cmd), val(_val) {}
-// };
 
 /** @defgroup mcrouter Echo Server Application
  *

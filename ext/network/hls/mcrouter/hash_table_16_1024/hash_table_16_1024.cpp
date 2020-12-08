@@ -92,83 +92,6 @@ htLookupResp<K,V> lookup(htLookupReq<K> request)
    return response;
 }
 
-
-template <int K, int V>
-htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
-                     hls::stream<ap_uint<16> >& regInsertFailureCount)
-{
-#pragma HLS INLINE
-
-   htEntry<K,V> currentEntries[NUM_TABLES];
-   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
-   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
-   static ap_uint<8> victimIdx = 0;
-   static ap_uint<1> victimBit = 0;
-   htUpdateResp<K,V> response;
-   response.op = request.op;
-   response.key = request.key;
-   response.value = request.value;
-   response.source = request.source;
-   response.success = false;
-   static uint16_t insertFailureCounter = 0;
-
-//    regInsertFailureCount = insertFailureCounter;
-
-   htEntry<K,V> currentEntry(request.key, request.value);
-   victimIdx = 0;
-   //Try multiple times
-   insertLoop: for (int j = 0; j < MAX_TRIALS; j++)
-   {
-      calculate_hashes(currentEntry.key, hashes);
-      //Look for free slot
-      int slot = -1;
-      for (int i = 0; i < NUM_TABLES; i++)
-      {
-         #pragma HLS UNROLL
-         currentEntries[i] = cuckooTables[i][hashes[i]];
-         if (!currentEntries[i].valid)
-         {
-            slot = i;
-         }
-      }
-
-      //If free slot
-      if (slot != -1)
-      {
-         currentEntries[slot] = currentEntry;
-         response.success = true;
-      }
-      else
-      {
-         //Evict existing entry and try to re-insert
-         int victimPos = (hashes[victimIdx] % (NUM_TABLES-1)) + victimBit;
-         htEntry<K,V> victimEntry = currentEntries[victimPos];//cuckooTables[victimPos][hashes[victimPos]];
-         currentEntries[victimPos] = currentEntry;
-         currentEntry = victimEntry;
-         victimIdx++;
-         if (victimIdx == NUM_TABLES)
-            victimIdx = 0;
-      }
-         //Write currentEntries back
-         for (int i = 0; i < NUM_TABLES; i++)
-         {
-            #pragma HLS UNROLL
-            cuckooTables[i][hashes[i]] = currentEntries[i];
-         }
-
-      victimBit++;
-      if (response.success)
-         break;
-   }//for
-   if (!response.success)
-   {
-      std::cout << "REACHED MAX TRIALS: " << request.key << " " << currentEntry.key << std::endl;
-      insertFailureCounter++;
-      regInsertFailureCount.write(insertFailureCounter);
-   }
-   return response;
-}
-
 template <int K, int V>
 htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
 {
@@ -233,6 +156,104 @@ htUpdateResp<K,V> update(htUpdateReq<K,V> request)
    return response;
 }
 
+
+template <int K, int V>
+htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
+                     hls::stream<ap_uint<16> >& regInsertFailureCount)
+{
+#pragma HLS INLINE
+
+   htEntry<K,V> currentEntries[NUM_TABLES];
+   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
+   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
+   htUpdateResp<K,V> response;
+   response.op = request.op;
+   response.key = request.key;
+   response.value = request.value;
+   response.source = request.source;
+   response.success = false;
+
+   calculate_hashes(request.key, hashes);
+   //Look for matching key
+   for (int i = 0; i < NUM_TABLES; i++)
+   {
+      #pragma HLS UNROLL
+      currentEntries[i] = cuckooTables[i][hashes[i]];
+      if(currentEntries[i].valid && currentEntries[i].key == request.key)
+      {
+         currentEntries[i].value = request.value;
+         response.success = true;
+      }
+      cuckooTables[i][hashes[i]] = currentEntries[i];
+   }
+
+    // update succeeds, return 
+    if(response.success)
+        return response;
+    
+    // update fails, do inserting
+    static ap_uint<8> victimIdx = 0;
+    static ap_uint<1> victimBit = 0;
+    static uint16_t insertFailureCounter = 0;
+
+    htEntry<K,V> currentEntry(request.key, request.value);
+    victimIdx = 0;
+    //Try multiple times
+    insertLoop: for (int j = 0; j < MAX_TRIALS; j++)
+    {
+        // saving the first hash calculation
+        if(j != 0){
+           calculate_hashes(currentEntry.key, hashes);
+        }
+        //Look for free slot
+        int slot = -1;
+        for (int i = 0; i < NUM_TABLES; i++)
+        {
+            #pragma HLS UNROLL
+            currentEntries[i] = cuckooTables[i][hashes[i]];
+            if (!currentEntries[i].valid)
+            {
+                slot = i;
+            }
+        }
+
+        //If free slot
+        if (slot != -1)
+        {
+            currentEntries[slot] = currentEntry;
+            response.success = true;
+        }
+        else
+        {
+            //Evict existing entry and try to re-insert
+            int victimPos = (hashes[victimIdx] % (NUM_TABLES-1)) + victimBit;
+            htEntry<K,V> victimEntry = currentEntries[victimPos];//cuckooTables[victimPos][hashes[victimPos]];
+            currentEntries[victimPos] = currentEntry;
+            currentEntry = victimEntry;
+            victimIdx++;
+            if (victimIdx == NUM_TABLES)
+                victimIdx = 0;
+        }
+        //Write currentEntries back
+        for (int i = 0; i < NUM_TABLES; i++)
+        {
+            #pragma HLS UNROLL
+            cuckooTables[i][hashes[i]] = currentEntries[i];
+        }
+
+        victimBit++;
+        if (response.success)
+            break;
+    }//for
+    if (!response.success)
+    {
+        std::cout << "REACHED MAX TRIALS: " << request.key << " " << currentEntry.key << std::endl;
+        insertFailureCounter++;
+        regInsertFailureCount.write(insertFailureCounter);
+    }
+    return response;
+}
+
 template <int K, int V>
 void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
                hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
@@ -258,9 +279,8 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
    else if (!s_axis_upd_req.empty())
    {
       htUpdateReq<K,V> request = s_axis_upd_req.read();
-      if (request.op == KV_INSERT)
-      {
-         htUpdateResp<K,V> response = insert<K,V>(request, regInsertFailureCount);
+      if(request.op = KV_UPDATE_INSERT){
+         htUpdateResp<K,V> response = update_insert<K,V>(request, regInsertFailureCount);
          m_axis_upd_rsp.write(response);
       }
       else if(request.op == KV_DELETE) //DELETE
@@ -269,7 +289,7 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
          m_axis_upd_rsp.write(response);
       }
       // @yang, adding a new function to update value locally. 
-      else //UPDATE
+      else if(request.op = KV_UPDATE) //UPDATE
       {
          htUpdateResp<K,V> response = update<K,V>(request);
          m_axis_upd_rsp.write(response);
