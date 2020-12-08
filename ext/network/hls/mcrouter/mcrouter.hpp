@@ -84,6 +84,7 @@ struct msgHeader {
 #define KV_MAX_EXT_SIZE (5*8)
 #define KV_MAX_KEY_SIZE (40*8)
 #define KV_MAX_VAL_SIZE (1024-192-KV_MAX_EXT_SIZE-KV_MAX_KEY_SIZE)
+// 59*8
 
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID

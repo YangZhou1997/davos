@@ -370,6 +370,8 @@ void extract_msg(
                 currSessionState.reset(); // ready to parse next message
                 std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                 msgBodyFifo.write(currMsgBody);
+                // removing currMsgBody from the hash table. 
+                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
             }
             
             // check whether we have consumed current word. 
@@ -784,7 +786,7 @@ void dummy(
     if(!m_axis_upd_rsp.empty()){
         hash_table_16_1024::htUpdateResp<16,1024> response = m_axis_upd_rsp.read();
         if (!response.success){
-            std::cerr << "[ERROR] insert failed" << std::endl;
+            std::cerr << "[ERROR] update failed" << std::endl;
         }
     }   
     if(!regInsertFailureCount.empty()){
