@@ -657,8 +657,14 @@ void deparser(
                 if(DATA_WIDTH >= requiredSendLen){
                     ap_uint<32> secondPartLen = requiredSendLen - MEMCACHED_HDRLEN*8;
                     std::cout << "secondPartLen " << secondPartLen << std::endl;
+                    
+                    if(secondPartLen == 0){
+                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = hdr;
+                    }
+                    else{
+                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                    }
 
-                    currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
                     currWord.keep = lenToKeep(requiredSendLen/8);
                     currWord.last = 1;
             		txData.write(currWord);

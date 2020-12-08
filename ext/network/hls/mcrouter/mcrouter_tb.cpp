@@ -192,6 +192,13 @@ void client(
             // the start of a key-value request. 
             rxWords.clear();
             currLen = 0;
+            
+            // workload empty
+            if(globalWords.size() == 0){
+                clientState = 1;
+                break;
+            }
+
             while(true){
                 net_axis<DATA_WIDTH> currWord = globalWords.front();
                 rxWords.push_back(currWord);
@@ -299,6 +306,7 @@ void memcached(
                 net_axis<DATA_WIDTH> currWord = txData.read();
                 txWords.push_back(currWord);
                 if(currWord.last){
+                    // cout << txWords.size() << endl;
                     uint8_t* data = new uint8_t[64 * txWords.size()];
                     uint32_t len = 0;
                     axisWord2byteArray(data, len, txWords);
@@ -348,7 +356,7 @@ void memcached(
                         notifications.write(notific);
                     }
                     
-                    delete data, buf;
+                    delete buf;
                     currKeyIdx += 1;                    
                     mcState = 0;
                 }
