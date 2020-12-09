@@ -394,7 +394,7 @@ void client2(
     static uint32_t idx = 0;
     static vector<net_axis<DATA_WIDTH>> words;
     
-    int nMsg = 1;
+    int nMsg = 4;
 
     switch(clientState){
         case 0: {
@@ -848,7 +848,7 @@ int main()
 		    rxMetaData, rxData, openTuples, openConnection, openConStatus,
 			closeConnection, txMetaData, txData, txStatus);
 
-#define TEST 2
+#define TEST 1
 
 #if TEST == 1
         client(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);

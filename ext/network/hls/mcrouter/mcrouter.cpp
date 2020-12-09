@@ -609,12 +609,56 @@ void proxy(
     }
 }
 
+enum lockOP { LOCK_ACQUIRE, LOCK_RELEASE};
+struct lockReq{
+    ap_uint<32> msgID;
+    lockOP opcode;
+    lockReq() {}
+    lockReq(ap_uint<32> m, lockOP o): msgID(m), opcode(o) {}
+};
+
+void txLock(
+    hls::stream<lockReq>& reqFifo, // input
+    hls::stream<ap_uint<1> >& grantFifo // output
+){
+    static ap_uint<1> is_locked = 0;
+    static ap_uint<32> currMsgID = 0;
+    if(!reqFifo.empty()){
+        lockReq req = reqFifo.read();
+        if(req.opcode == LOCK_ACQUIRE){
+            if(is_locked){
+                if(currMsgID == req.msgID){
+                    grantFifo.write(1);
+                    std::cout << "lock acquiring okay: " << req.msgID << std::endl;
+                }
+                else{
+                    grantFifo.write(0);
+                    std::cout << "lock acquiring fails: " << req.msgID << std::endl;
+                }
+            }
+            else{
+                is_locked = 1;
+                currMsgID = req.msgID;
+                grantFifo.write(1);
+                std::cout << "lock acquiring okay: " << req.msgID << std::endl;
+            }
+        }
+        else{
+            if(is_locked && currMsgID == req.msgID){
+                is_locked = 0;
+            }
+        }
+    }
+}
+
 void deparser(
     hls::stream<ap_uint<16> >& sessionIdFifo, // input
     hls::stream<msgHeader>& msgHeaderFifo, // input
     hls::stream<msgBody>& msgBodyFifo, // input
 	hls::stream<appTxMeta>& txMetaData, 
-    hls::stream<net_axis<DATA_WIDTH> >& txData
+    hls::stream<net_axis<DATA_WIDTH> >& txData,
+    hls::stream<lockReq>& reqFifo, // output
+    hls::stream<ap_uint<1> >& grantFifo // input
 ){
 #pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
@@ -623,9 +667,10 @@ void deparser(
     static ap_uint<32> currSendLen;
     static ap_uint<MEMCACHED_HDRLEN*8> hdr;
     static ap_uint<MAX_BODY_LEN> body;
+    static ap_uint<32> currMsgID;
 
-    enum deparser_fsmType{IDLE=0, SEND_HDR, SEND_OTHERS};
-    const char* deparser_fsmName[3] = {"IDLE", "SEND_HDR", "SEND_OTHERS"};
+    enum deparser_fsmType{IDLE=0, SEND_HDR, SEND_OTHERS, WAITING_LOCK};
+    const char* deparser_fsmName[4] = {"IDLE", "SEND_HDR", "SEND_OTHERS", "WAITING_LOCK"};
     static deparser_fsmType esac_fsmState = IDLE;
 
     std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)esac_fsmState] << std::endl;
@@ -636,6 +681,7 @@ void deparser(
                 ap_uint<16> currSessionID = sessionIdFifo.read();
                 msgHeader currMsgHeader = msgHeaderFifo.read();
                 msgBody currMsgBody = msgBodyFifo.read();
+                currMsgID = currMsgBody.msgID;
 
                 requiredSendLen = MEMCACHED_HDRLEN*8 + currMsgHeader.bodyLen*8;
                 currSendLen = 0;
@@ -648,9 +694,24 @@ void deparser(
                 body = currMsgBody.body;
 
                 txMetaData.write(appTxMeta(currSessionID, requiredSendLen));
-    			esac_fsmState = SEND_HDR;
+
+                reqFifo.write(lockReq(currMsgID, LOCK_ACQUIRE));
+    			esac_fsmState = WAITING_LOCK;
     		}
     		break;
+        }
+        // TODO: need to check txStatus. 
+        case WAITING_LOCK: {
+            if(!grantFifo.empty()){
+                ap_uint<1> grant = grantFifo.read();
+                if(grant){
+                    esac_fsmState = SEND_HDR;
+                }
+                else{
+                    reqFifo.write(lockReq(currMsgID, LOCK_ACQUIRE));
+                }
+            }
+            break;
         }
         case SEND_HDR: {
     		if (!txData.full())
@@ -676,6 +737,8 @@ void deparser(
             		txData.write(currWord);
 
                     currSendLen += requiredSendLen;
+                    
+                    reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
                     esac_fsmState = IDLE;
                 }
                 else{
@@ -711,6 +774,7 @@ void deparser(
                         txData.write(currWord);
         
                         currSendLen += remainLen;
+                        reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
                         esac_fsmState = IDLE;
                     }
                     else{
@@ -724,6 +788,7 @@ void deparser(
                     }
                 }
                 else{
+                    reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
                     esac_fsmState = IDLE;
                 }
             }
@@ -897,7 +962,12 @@ void mcrouter(
     #pragma HLS stream variable=mc_sessionIdFifo3 depth=64
     #pragma HLS stream variable=mc_closedSessionIdFifo depth=64
 
-
+    static hls::stream<lockReq> m_reqFifo("m_reqFifo");
+    static hls::stream<ap_uint<1> > m_grantFifo("m_grantFifo");
+    #pragma HLS stream variable=m_reqFifo depth=64
+    #pragma HLS DATA_PACK variable=m_reqFifo
+    #pragma HLS stream variable=m_grantFifo depth=64
+    
     // initing a hash table block
     hash_table_16_1024::hash_table_top(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
     hash_table_32_32::hash_table_top(s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1, regInsertFailureCount1);
@@ -932,7 +1002,9 @@ void mcrouter(
             mc_cmdFifo, mc_sessionCountFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3);
 
     // deparsing the res and resp, sending to destination (client or memcached)
-    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData);
+    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData, m_reqFifo, m_grantFifo);
+    // locking data tx. 
+    txLock(m_reqFifo, m_grantFifo);
 
 	dummy(closeConnection, txStatus, m_axis_upd_rsp, regInsertFailureCount, regInsertFailureCount1);
 
