@@ -81,7 +81,7 @@ struct msgHeader {
     }
 };
 
-#define MAX_BODY_LEN (1024-35-48*3)
+#define MAX_BODY_LEN (1024-35-48*3-5) // 840
 #define MAX_KEY_LEN (40*8)
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID
@@ -91,6 +91,7 @@ struct msgBody {
     ap_uint<48>                 extPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
+    ap_uint<5>                  reserved;
     ap_uint<MAX_BODY_LEN>       body;
     msgBody() {}
     void consume_word(ap_uint<1024>& w){
@@ -101,10 +102,11 @@ struct msgBody {
         extPtr = w(988, 941);
         keyPtr = w(940, 893);
         valPtr = w(892, 845);
-        body = w(844, 0);
+        reserved = w(844, 840);
+        body = w(839, 0);
     }
     ap_uint<1024> output_word(){
-        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, body);
+        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, reserved, body);
     }
     void reset(){
         msgID = 0;
@@ -114,7 +116,29 @@ struct msgBody {
         extPtr = 0;
         keyPtr = 0;
         valPtr = 0;
+        reserved = 0;
         body = 0;
+    }
+
+    void display(uint32_t extlen, uint32_t keylen, uint32_t vallen){
+        uint32_t pos = 0;
+
+        std::cout << "ext: ";
+        for(int i = 0; i < extlen; i++){
+            std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
+            pos += 8;
+        }
+        std::cout << std::endl << "key: ";
+        for(int i = 0; i < keylen; i++){
+            std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
+            pos += 8;
+        }
+        std::cout << std::endl << "val: ";
+        for(int i = 0; i < vallen; i++){
+            std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
+            pos += 8;
+        }
+        std::cout << std::endl;
     }
 };
 

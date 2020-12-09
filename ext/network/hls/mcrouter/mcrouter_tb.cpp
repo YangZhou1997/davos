@@ -59,7 +59,9 @@ void byteArray2axisWord(uint8_t* data, uint32_t len, vector<net_axis<DATA_WIDTH>
     uint32_t numWords = len / DATA_LEN;
     uint32_t remainBytes = len - numWords * DATA_LEN;
     
+    //!!! it gets randomized initially, since it is not static. 
     net_axis<DATA_WIDTH> currWord;
+    currWord.last = 0;
     for(int i = 0; i < numWords; i++){
         str2bits(data + i*DATA_LEN, DATA_LEN, currWord.data);
         if(remainBytes == 0 && i == numWords-1){
@@ -89,11 +91,12 @@ void axisWord2byteArray(uint8_t* data, uint32_t& len, vector<net_axis<DATA_WIDTH
 }
 #define NUM_KV 1024
 static vector<string> keys;
+static vector<string> vals;
 static vector<bool> ops;
 static map<string, string> kvMap;
 static queue<net_axis<DATA_WIDTH>> globalWords;
 
-void displayMsg(uint8_t* data, uint32_t len, bool check_res, string curKey){
+void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
     protocol_binary_request_header req;
     memcpy(req.bytes, data, 24);
     uint16_t keylen = htons(req.request.keylen);
@@ -113,7 +116,7 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, string curKey){
             if(check_res){
                 cout << "==================GET request check==================" << endl;
                 cout << "received key: " << key << endl;
-                cout << "-correct key: " << curKey << endl;
+                cout << "-correct key: " << keys[opaque] << endl;
                 cout << "==================GET request end===================" << endl;
             }
 
@@ -136,10 +139,10 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, string curKey){
             if(check_res){
                 cout << "==================SET request check==================" << endl;
                 cout << "received key: " << key << endl;
-                cout << "-correct key: " << curKey << endl;
+                cout << "-correct key: " << keys[opaque] << endl;
 
                 cout << "received val: " << val << endl;
-                cout << "-correct val: " << kvMap[curKey] << endl;
+                cout << "-correct val: " << vals[opaque] << endl;
                 cout << "==================SET request end===================" << endl;
             }
 
@@ -156,7 +159,7 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, string curKey){
             if(check_res){
                 cout << "==================GET response check==================" << endl;
                 cout << "received val: " << val << endl;
-                cout << "-correct val: " << kvMap[curKey] << endl;
+                cout << "-correct val: " << vals[opaque] << endl;
                 cout << "==================GET response end===================" << endl;
             }
             delete val;
@@ -164,6 +167,10 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, string curKey){
         }
         case PROTOCOL_BINARY_CMD_RSET: {
             req.display();
+            if(check_res){
+                cout << "==================SET response check==================" << endl;
+                cout << "==================SET response end===================" << endl;
+            }
             break;
         }
     }
@@ -185,7 +192,6 @@ void client(
     static vector<net_axis<DATA_WIDTH>> rxWords;
     static vector<net_axis<DATA_WIDTH>> txWords;
     static uint32_t currLen = 0;
-    static int currKeyIdx = 0;
 
     switch(clientState){
         case 0: {
@@ -248,9 +254,13 @@ void client(
                     uint8_t* data = new uint8_t[64 * txWords.size()];
                     uint32_t len = 0;
                     axisWord2byteArray(data, len, txWords);
+
+                    protocol_binary_response_header rsp;
+                    memcpy(rsp.bytes, data, 24);
+                    uint32_t opaque = htonl(rsp.response.opaque);
+                    
                     cout << "client receives data: len=" << dec << len << endl;
-                    displayMsg(data, len, true, keys[currKeyIdx]);
-                    currKeyIdx += 1;
+                    displayMsg(data, len, true, opaque);
                     // clientState = 1;
                     clientState = 0; // initiating a new key-value request. 
                     delete data;
@@ -273,7 +283,6 @@ void memcached(
     static ap_uint<4> mcState = 0;
     static vector<net_axis<DATA_WIDTH>> txWords;
     static vector<net_axis<DATA_WIDTH>> rxWords;
-    static int currKeyIdx = 0;
     
     switch(mcState){
         case 0: {
@@ -311,8 +320,13 @@ void memcached(
                     uint32_t len = 0;
                     axisWord2byteArray(data, len, txWords);
                     
+                    protocol_binary_request_header req;
+                    memcpy(req.bytes, data, 24);
+                    uint32_t opaque = htonl(req.request.opaque);
+                    
                     cout << "memcached receives data: " << dec << len << endl;
-                    displayMsg(data, len, true, keys[currKeyIdx]);
+                    displayMsg(data, len, true, opaque);
+                    
                     delete data;
 
                     // generating response; 
@@ -325,14 +339,13 @@ void memcached(
                         .datatype = 0,
                         .status = htons(0),
                         .bodylen = htonl(0),
-                        .opaque = 0xdeadbeef,
+                        .opaque = htonl(opaque),
                         .cas = 0
                     };
                     rxWords.clear();
                     
-                    bool op = ops[currKeyIdx];
-                    string key = keys[currKeyIdx];
-                    string val = kvMap[key];
+                    bool op = (req.request.opcode != PROTOCOL_BINARY_CMD_GET);
+                    string val = vals[opaque];
                     uint32_t vallen = val.length();
                     uint8_t* buf = new uint8_t[24+vallen];
                     if(!op){
@@ -357,7 +370,6 @@ void memcached(
                     }
                     
                     delete buf;
-                    currKeyIdx += 1;                    
                     mcState = 0;
                 }
             }
@@ -366,6 +378,9 @@ void memcached(
     }
 }
 
+// static const char* globalKey = "hellohellohellohellohellohellohellohello";
+// static const char* globalVal = "worldworldworldworldworldworldworldworldworldworldworld";
+    
 void client2(
     stream<appNotification>& notifications,
     stream<appReadRequest>& readRequest, 
@@ -375,31 +390,25 @@ void client2(
     stream<net_axis<DATA_WIDTH> >& txData,
     stream<appTxRsp>& txStatus
 ){
-    static ap_uint<4> clientState = 0;
-    static const char* key = "hello";
-    static uint16_t keylen = strlen(key); 
-    
-    static protocol_binary_request_header req; 
-    req.request = {
-            .magic = PROTOCOL_BINARY_REQ, 
-            .opcode = PROTOCOL_BINARY_CMD_GET, 
-            .keylen = htons(keylen),
-            .extlen = 0,
-            .datatype = 0,
-            .reserved = htons(0),
-            .bodylen = htonl(keylen),
-            .opaque = htonl(0xdeadbeef),
-            .cas = 0
-        };
+    static ap_uint<4> clientState = 0;    
+    static uint32_t idx = 0;
     static vector<net_axis<DATA_WIDTH>> words;
     
-    int nMsg = 4;
+    int nMsg = 1;
 
     switch(clientState){
         case 0: {
             // the start of a key-value request. 
-            appNotification notific(clientSessionID, (24+keylen)*nMsg, 0, 0, false);
-            notifications.write(notific);
+            uint16_t keylen = keys[idx].length(); 
+            uint16_t vallen = vals[idx].length(); 
+            if(!ops[idx]){
+                appNotification notific(clientSessionID, (24+keylen)*nMsg, 0, 0, false);
+                notifications.write(notific);
+            }
+            else{
+                appNotification notific(clientSessionID, (24+keylen+vallen)*nMsg, 0, 0, false);
+                notifications.write(notific);
+            }
             clientState = 1;
             break;
         }
@@ -411,20 +420,68 @@ void client2(
 
                 rxMetaData.write(clientSessionID);            
                 words.clear();
-                
-                uint8_t* data = new uint8_t[(24+keylen)*nMsg];
-                for(int i = 0; i < nMsg; i++){
-                    memcpy(data+(24+keylen)*i, req.bytes, 24);
-                    memcpy(data+(24+keylen)*i+24, key, keylen);
+
+                if(!ops[idx]){
+                    const char* globalKey = keys[idx].c_str();
+                    uint16_t keylen = strlen(globalKey); 
+                    protocol_binary_request_header req; 
+                    req.request = {
+                            .magic = PROTOCOL_BINARY_REQ, 
+                            .opcode = PROTOCOL_BINARY_CMD_GET, 
+                            .keylen = htons(keylen),
+                            .extlen = 0,
+                            .datatype = 0,
+                            .reserved = htons(0),
+                            .bodylen = htonl(keylen),
+                            .opaque = htonl(idx),
+                            .cas = 0
+                        };
+                    idx = (idx + 1) % NUM_KV;
+
+                    uint8_t* data = new uint8_t[(24+keylen)*nMsg];
+                    for(int i = 0; i < nMsg; i++){
+                        memcpy(data+(24+keylen)*i, req.bytes, 24);
+                        memcpy(data+(24+keylen)*i+24, globalKey, keylen);
+                    }
+                    
+                    byteArray2axisWord(data, (24+keylen)*nMsg, words);
+                    cout << "words.size() = " << words.size() << endl;
+                    delete data;
                 }
-                
-                byteArray2axisWord(data, (24+keylen)*nMsg, words);
-                cout << "words.size() = " << words.size() << endl;
+                else{
+                    const char* globalKey = keys[idx].c_str();
+                    const char* globalVal = vals[idx].c_str();
+                    uint16_t keylen = strlen(globalKey); 
+                    uint16_t vallen = strlen(globalVal); 
+                    protocol_binary_request_header req; 
+                    req.request = {
+                            .magic = PROTOCOL_BINARY_REQ, 
+                            .opcode = PROTOCOL_BINARY_CMD_SET, 
+                            .keylen = htons(keylen),
+                            .extlen = 0,
+                            .datatype = 0,
+                            .reserved = htons(0),
+                            .bodylen = htonl(keylen + vallen),
+                            .opaque = htonl(idx),
+                            .cas = 0
+                        };
+                    idx = (idx + 1) % NUM_KV;
+
+                    uint8_t* data = new uint8_t[(24+keylen+vallen)*nMsg];
+                    for(int i = 0; i < nMsg; i++){
+                        memcpy(data+(24+keylen+vallen)*i, req.bytes, 24);
+                        memcpy(data+(24+keylen+vallen)*i+24, globalKey, keylen);
+                        memcpy(data+(24+keylen+vallen)*i+24+keylen, globalVal, vallen);
+                    }
+                    
+                    byteArray2axisWord(data, (24+keylen+vallen)*nMsg, words);
+                    cout << "words.size() = " << words.size() << endl;
+                    delete data;
+                }
 
                 for(int i = 0; i < words.size(); i++){
                     rxData.write(words[i]);
                 }
-                delete data;
             }
             // client receives final response from mcrouter. 
             else if(!txMetaData.empty()){
@@ -448,8 +505,13 @@ void client2(
                     uint8_t* data = new uint8_t[64 * words.size()];
                     uint32_t len = 0;
                     axisWord2byteArray(data, len, words);
+
+                    protocol_binary_response_header rsp;
+                    memcpy(rsp.bytes, data, 24);
+                    uint32_t opaque = htonl(rsp.response.opaque);
+                    
                     cout << "client receives data: len=" << dec << len << endl;
-                    displayMsg(data, len, false, string());
+                    displayMsg(data, len, true, opaque);
                     // clientState = 1;
                     clientState = 0; // initiating a new key-value request. 
                     delete data;
@@ -470,24 +532,8 @@ void memcached2(
     stream<appTxRsp>& txStatus
 ){
     static ap_uint<4> mcState = 0;
-
-    static const char* val = "world";
-    static uint16_t vallen = strlen(val);
-    
-    static protocol_binary_response_header rsp;
-    rsp.response = {
-            .magic = PROTOCOL_BINARY_RES, 
-            .opcode = PROTOCOL_BINARY_CMD_RGET, 
-            .keylen = htons(0),
-            .extlen = 0,
-            .datatype = 0,
-            .status = htons(0),
-            .bodylen = htonl(vallen),
-            .opaque = 0xdeadbeef,
-            .cas = 0
-        };
-    
     static vector<net_axis<DATA_WIDTH>> words;
+    static uint32_t opaque = 0;
     
     switch(mcState){
         case 0: {
@@ -508,18 +554,53 @@ void memcached2(
                 cout << "memcached sends data: session " << dec << appReq.sessionID << ", length" << appReq.length << endl;
 
                 rxMetaData.write(memcachedSessionID);
-            
                 words.clear();
                 
-                uint8_t* data = new uint8_t[24+vallen];
-                memcpy(data, rsp.bytes, 24);
-                memcpy(data+24, val, vallen);
-                byteArray2axisWord(data, 24+vallen, words);
+                if(!ops[opaque]){
+                    const char* globalVal = vals[opaque].c_str();
+                    uint16_t vallen = strlen(globalVal);
+                    protocol_binary_response_header rsp;
+                    rsp.response = {
+                            .magic = PROTOCOL_BINARY_RES, 
+                            .opcode = PROTOCOL_BINARY_CMD_RGET, 
+                            .keylen = htons(0),
+                            .extlen = 0,
+                            .datatype = 0,
+                            .status = htons(0),
+                            .bodylen = htonl(vallen),
+                            .opaque = htonl(opaque),
+                            .cas = 0
+                        };
+                    
+                    uint8_t* data = new uint8_t[24+vallen];
+                    memcpy(data, rsp.bytes, 24);
+                    memcpy(data+24, globalVal, vallen);
+                    byteArray2axisWord(data, 24+vallen, words);
+                    delete data;
+                }
+                else{
+                    protocol_binary_response_header rsp;
+                    rsp.response = {
+                            .magic = PROTOCOL_BINARY_RES, 
+                            .opcode = PROTOCOL_BINARY_CMD_RSET, 
+                            .keylen = htons(0),
+                            .extlen = 0,
+                            .datatype = 0,
+                            .status = htons(0),
+                            .bodylen = htonl(0),
+                            .opaque = htonl(opaque),
+                            .cas = 0
+                        };
+                    
+                    uint8_t* data = new uint8_t[24];
+                    memcpy(data, rsp.bytes, 24);
+                    byteArray2axisWord(data, 24, words);
+                    delete data;
+                }
 
                 for(int i = 0; i < words.size(); i++){
                     rxData.write(words[i]);
                 }
-                delete data;
             }
             break;
         }
@@ -533,8 +614,13 @@ void memcached2(
                     uint32_t len = 0;
                     axisWord2byteArray(data, len, words);
                     
+                    protocol_binary_request_header req;
+                    memcpy(req.bytes, data, 24);
+                    opaque = htonl(req.request.opaque);
+                    uint16_t vallen = vals[opaque].length();
+
                     cout << "memcached receives data: " << dec << len << endl;
-                    displayMsg(data, len, false, string());
+                    displayMsg(data, len, true, opaque);
                     delete data;
                     
                     // initiating the process of memcached sending response back
@@ -687,7 +773,10 @@ int main()
             continue;
         }
         keys.push_back(key);
+        vals.push_back(val);
         ops.push_back(rand() % 2);
+        // ops.push_back(0);
+
         kvMap[key] = val;
     }
 
@@ -696,7 +785,7 @@ int main()
     for(int i = 0; i < NUM_KV; i++){
         bool op = ops[i];
         string key = keys[i];
-        string val = kvMap[key];
+        string val = vals[i];
         
         static protocol_binary_request_header req; 
         req.request = {
@@ -707,7 +796,7 @@ int main()
             .datatype = 0,
             .reserved = htons(0),
             .bodylen = htonl(0),
-            .opaque = htonl(0xdeadbeef),
+            .opaque = htonl(i), // used as request id
             .cas = 0
         };
         if(!op){
@@ -753,15 +842,22 @@ int main()
 
     static ap_uint<4> tbState = 0;
    
-	while (cycleCount < 100)
+	while (cycleCount < 1000)
 	{
         mcrouter(listenPort, listenPortStatus, notifications, readRequest,
 		    rxMetaData, rxData, openTuples, openConnection, openConStatus,
 			closeConnection, txMetaData, txData, txStatus);
+
+#define TEST 2
+
+#if TEST == 1
         client(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);
         memcached(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2);
-        // client2(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);
-        // memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2);
+#elif TEST == 2
+        client2(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);
+        memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2);
+#endif
+
         mux(notifications1, notifications2, notifications);
         appReqMux(readRequest, readRequest1, readRequest2);
         mux(rxMetaData1, rxMetaData2, rxMetaData);

@@ -333,6 +333,7 @@ void extract_msg(
                     
                     std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                     msgBodyFifo.write(currMsgBody);
+                    currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
                     currSessionState.reset(); // ready to parse next message
                     sessionStateTable[currSessionID] = currSessionState;
@@ -352,6 +353,7 @@ void extract_msg(
                         
                         std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                         msgBodyFifo.write(currMsgBody);
+                        currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
                         currSessionState.reset(); // ready to parse next message
                         sessionStateTable[currSessionID] = currSessionState;
@@ -657,14 +659,18 @@ void deparser(
                 if(DATA_WIDTH >= requiredSendLen){
                     ap_uint<32> secondPartLen = requiredSendLen - MEMCACHED_HDRLEN*8;
                     std::cout << "secondPartLen " << secondPartLen << std::endl;
+                    std::cout << "requiredSendLen " << requiredSendLen << std::endl;
                     
                     if(secondPartLen == 0){
-                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = hdr;
+                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = hdr(MEMCACHED_HDRLEN*8-1, 0);
                     }
                     else{
-                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                        // this is not supported in HLS -- causing currWord.data to be all zero, not sure why
+                        // currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr(MEMCACHED_HDRLEN*8-1, 0), body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
+                        currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, DATA_WIDTH-requiredSendLen) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
                     }
-
+                    
                     currWord.keep = lenToKeep(requiredSendLen/8);
                     currWord.last = 1;
             		txData.write(currWord);
@@ -676,8 +682,11 @@ void deparser(
                     ap_uint<32> secondPartLen = DATA_WIDTH - MEMCACHED_HDRLEN*8;
                     std::cout << "secondPartLen " << secondPartLen << std::endl;
                     
-                    currWord.data = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                    // currWord.data = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                    currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
+                    currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, 0) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
                     currWord.keep = lenToKeep(DATA_WIDTH/8);
+                    currWord.last = 0;
                     txData.write(currWord);
 
                     currSendLen += DATA_WIDTH;
@@ -693,6 +702,7 @@ void deparser(
                 if(currSendLen < requiredSendLen){
                     ap_uint<16> remainLen = requiredSendLen - currSendLen;
                     ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
+                    std::cout << "remainLen = " << remainLen << std::endl;
 
                     if(DATA_WIDTH >= remainLen){
                         currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = body(body_sendingPos-1, body_sendingPos-remainLen);
@@ -706,6 +716,7 @@ void deparser(
                     else{
                         currWord.data = body(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
                         currWord.keep = lenToKeep(DATA_WIDTH/8);
+                        currWord.last = 0;
                         txData.write(currWord);
         
                         currSendLen += DATA_WIDTH;
