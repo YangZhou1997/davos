@@ -64,6 +64,10 @@ void open_port(
 	}//switch
 }
 
+// TODO: 
+// return a list of sessionID. 
+// EOF, SOF. 
+// return a specific sessionID
 void connect_memcached(
     hls::stream<ipTuple>& openTuples, //input
     hls::stream<openStatus>& openConStatus, //input
@@ -72,16 +76,19 @@ void connect_memcached(
     hls::stream<ap_uint<2> >& cmdFifo, //input
     hls::stream<ap_uint<16> >& sessionCountFifo, //output
     hls::stream<ap_uint<32> >& hashValFifo, //input
-    hls::stream<ap_uint<16> >& sessionIdFifo, //output
+    hls::stream<ap_uint<16> >& sessionIdFifo2, //output
     hls::stream<ap_uint<16> >& idxFifo, //input
 	hls::stream<ap_uint<16> >& sessionIdFifo3, //output
 	hls::stream<ap_uint<16> >& closedSessionIdFifo //input
+    // softTkoFIFO () 
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
 static ap_uint<16> connectedSessions[MAX_CONNECTED_SESSIONS];
 static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
+
+// static SoftTkoCount sessionState[];
 #pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_BRAM
 #pragma HLS ARRAY_PARTITION variable=connectedSessions complete
 #pragma HLS DEPENDENCE variable=connectedSessions inter false
@@ -91,6 +98,7 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
 
 static ap_uint<16> sessionCount = 0;
 
+// switch()
     if (!openTuples.empty()){
         ipTuple tuple = openTuples.read();
 		openConnection.write(tuple);
@@ -121,7 +129,7 @@ static ap_uint<16> sessionCount = 0;
         ap_uint<32> hashVal = hashValFifo.read();
         // TODO: handling closed connections, or in policy engine
         ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1)) % sessionCount;
-        sessionIdFifo.write(connectedSessions[idx]);
+        sessionIdFifo2.write(connectedSessions[idx]);
     }
     else if(!idxFifo.empty()){
         ap_uint<16> idx = idxFifo.read();
@@ -170,7 +178,7 @@ void notification_handler(
 #define MAX_SESSION_NUM ((1 << 16) - 1)
 
 void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
-    net_axis<DATA_WIDTH>& currWord, ap_uint<16>& currWordValidLen, ap_uint<16>& currWordValidLen_init, hls::stream<msgBody>& msgBodyFifo){
+    net_axis<DATA_WIDTH>& currWord, ap_uint<16>& currWordValidLen, ap_uint<16>& currWordValidLen_init){
 #pragma HLS INLINE
 
     if(currWordValidLen > 0){
@@ -179,6 +187,7 @@ void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHea
             ap_uint<32> currBodyLen = currSessionState.currBodyLen;
             ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currBodyLen;
 
+            if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
             std::cout << "currWordValidLen=" << currWordValidLen << std::endl;
             std::cout << "currBodyLen=" << currBodyLen << " requiredBodyLen=" << requiredBodyLen << std::endl;
             
@@ -197,6 +206,41 @@ void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHea
     }
 }
 
+void rxLock(
+    hls::stream<lockReq>& lockReqFifo, // input
+    hls::stream<ap_uint<1> >& grantFifo // output
+){
+    static ap_uint<1> is_locked = 0;
+    static ap_uint<32> currMsgID = 0;
+    if(!lockReqFifo.empty()){
+        lockReq req = lockReqFifo.read();
+        if(req.opcode == LOCK_ACQUIRE){
+            if(is_locked){
+                if(currMsgID == req.msgID){
+                    grantFifo.write(1);
+                    std::cout << "rxlock acquiring okay: " << req.msgID << std::endl;
+                }
+                else{
+                    grantFifo.write(0);
+                    std::cout << "rxlock acquiring fails: " << req.msgID << std::endl;
+                }
+            }
+            else{
+                is_locked = 1;
+                currMsgID = req.msgID;
+                grantFifo.write(1);
+                std::cout << "rxlock acquiring okay: " << req.msgID << std::endl;
+            }
+        }
+        else{
+            if(is_locked && currMsgID == req.msgID){
+                is_locked = 0;
+                std::cout << "rxlock releasing okay: " << req.msgID << std::endl;
+            }
+        }
+    }
+}
+
 void extract_msg(
     hls::stream<ap_uint<16> >& rxMetaData, // input
 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
@@ -205,20 +249,27 @@ void extract_msg(
     hls::stream<msgBody>& msgBodyFifo, // output
     hls::stream<hash_table_16_1024::htLookupReq<16> >&       s_axis_lup_req, 
     hls::stream<hash_table_16_1024::htUpdateReq<16,1024> >&    s_axis_upd_req, 
-    hls::stream<hash_table_16_1024::htLookupResp<16,1024> >&   m_axis_lup_rsp
+    hls::stream<hash_table_16_1024::htLookupResp<16,1024> >&   m_axis_lup_rsp,
+    hls::stream<lockReq>& lockReqFifo, // output
+    hls::stream<ap_uint<1> >& grantFifo // input
 ){
 #pragma HLS PIPELINE II=3
 #pragma HLS INLINE off
     // generating globally unique msgID. 
-    static ap_uint<32> currentMsgID = 0;
+    static ap_uint<32> currentMsgID = 1;
+    // this ASIX transaction should be locked. 
+    // rxTransID is not the same as currentMsgID, as one transaction might include multiple msg. 
+    static ap_uint<32> rxTransID = 1;
+ 
+    static ap_uint<32> currRxTransID = 1;
 
     // static value gets inited to zero by default. 
     static sessionState sessionStateTable[MAX_SESSION_NUM];
     #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
 
-    enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
-    const char* axisFsmName[4] = {"IDLE", "RECOVER_STATE", "READ_WORD", "PARSE_WORD"};
+    enum axisFsmType {IDLE, RECOVER_STATE, WAITING_LOCK, READ_WORD, PARSE_WORD};
+    const char* axisFsmName[5] = {"IDLE", "RECOVER_STATE", "WAITING_LOCK", "READ_WORD", "PARSE_WORD"};
     static axisFsmType currAxisState = IDLE;
 
 	static ap_uint<16>          currSessionID; // valid when currAxisState becomes on-going
@@ -231,11 +282,14 @@ void extract_msg(
     static ap_uint<16>          currWordValidLen_init; // the available length of currWord
     static ap_uint<16>          currWordValidLen; // the current waiting-for-parsing length of currWord
     
+    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+
     std::cout << "mcrouter::extract_msg fsmState " << axisFsmName[(int)currAxisState] << std::endl;
     switch (currAxisState){
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
                 rxMetaData.read(currSessionID);
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "mcrouter::extract_msg rxMetaData.sessionID " << currSessionID << std::endl;
                 // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
                 currSessionState = sessionStateTable[currSessionID];
@@ -246,19 +300,41 @@ void extract_msg(
             }
             break;
         }
-        // get the 
+        // get the session-specific parsing state
         case RECOVER_STATE: {
             if(!m_axis_lup_rsp.empty()){
                 hash_table_16_1024::htLookupResp<16, 1024> response = m_axis_lup_rsp.read();
                 if(response.hit){
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "response.key = " << response.key << ", response.value " << response.value(1023, 992) << std::endl;
                     currMsgBody.consume_word(response.value);
                 }
                 else{
                     currMsgBody.reset(); // fresh new start for this sesion. 
+                    currMsgBody.msgID = currentMsgID;
+                    currentMsgID += 1;
                 }
-                // std::cout << response.hit << std::endl;
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                std::cout << "RECOVER_STATE " << response.hit << std::endl;
                 // we should expect the hash table is enough to handle all active connections; 
-                currAxisState = READ_WORD;
+
+                currRxTransID = rxTransID;
+                lockReqFifo.write(lockReq(currRxTransID, LOCK_ACQUIRE));
+                rxTransID ++;
+
+                currAxisState = WAITING_LOCK;
+            }
+            break;
+        }
+        case WAITING_LOCK: {
+            if(!grantFifo.empty()){
+                ap_uint<1> grant = grantFifo.read();
+                if(grant){
+                    currAxisState = READ_WORD;
+                }
+                else{
+                    lockReqFifo.write(lockReq(currRxTransID, LOCK_ACQUIRE));
+                }
             }
             break;
         }
@@ -268,6 +344,7 @@ void extract_msg(
                 currWordValidLen_init = keepToLen(currWord.keep);
                 currWordValidLen = currWordValidLen_init;
 
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "currWordValidLen_init=" << currWordValidLen_init << std::endl;
                 currAxisState = PARSE_WORD;
             }
@@ -286,16 +363,16 @@ void extract_msg(
                         currSessionState.parsingHeaderState = 1; // header is parsed. 
                         
                         currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+                        
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                         std::cout << "extract_msg receives data" << std::endl;
                         currMsgHeader.display();
-                        msgHeaderFifo.write(currMsgHeader);
-                        sessionIdFifo.write(currSessionID);
 
                         currSessionState.requiredLen = currMsgHeader.bodyLen + MEMCACHED_HDRLEN;
                         
                         ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currSessionState.currBodyLen;
                         if(requiredBodyLen > 0){
-                            parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init, msgBodyFifo);
+                            parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init);
                         }
                         else{
                             currSessionState.parsingBodyState = 1;
@@ -311,13 +388,14 @@ void extract_msg(
                     currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
                     ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currSessionState.currBodyLen;
                     if(requiredBodyLen > 0){
-                        parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init, msgBodyFifo);
+                        parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init);
                     }
                     else{
                         currSessionState.parsingBodyState = 1;
                     }
                 }
             }
+            if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
             std::cout << "currWordValidLen=" << currWordValidLen << std::endl;
 
             ap_uint<1> parsingMsgState = (currSessionState.parsingHeaderState == 1 && currSessionState.parsingBodyState == 1);
@@ -325,18 +403,29 @@ void extract_msg(
             
             if(currWordValidLen > 0){
                 if(parsingMsgState){
-                    currMsgBody.msgID = currentMsgID;
                     currMsgBody.extInl = 1;
                     currMsgBody.keyInl = 1;
                     currMsgBody.valInl = 1;
-                    currentMsgID += 1;
                     
-                    std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "writing currMsgBody (path1) for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                    // !!! only write out when current msg is parsed
+                    msgHeaderFifo.write(currMsgHeader);
                     msgBodyFifo.write(currMsgBody);
+                    sessionIdFifo.write(currSessionID);
+
+                    currMsgHeader.display();
                     currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
+                    // the AXIS for current session still has data to parse; we do not need to store currSessionState back.  
+                    // sessionStateTable[currSessionID] = currSessionState;
+
                     currSessionState.reset(); // ready to parse next message
-                    sessionStateTable[currSessionID] = currSessionState;
+
+                    currMsgBody.reset(); // fresh new start for this sesion. 
+                    currMsgBody.msgID = currentMsgID;
+                    currentMsgID++;
+
                     // removing currMsgBody from the hash table. 
                     s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
                 }
@@ -345,14 +434,18 @@ void extract_msg(
             else{
                 if(currWord.last == 1){
                     if(parsingMsgState){
-                        currMsgBody.msgID = currentMsgID;
                         currMsgBody.extInl = 1;
                         currMsgBody.keyInl = 1;
                         currMsgBody.valInl = 1;
-                        currentMsgID += 1;
                         
-                        std::cout << "writing currMsgBody for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "writing currMsgBody for (path2) currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                        // !!! only write out when current msg is parsed
+                        msgHeaderFifo.write(currMsgHeader);
                         msgBodyFifo.write(currMsgBody);
+                        sessionIdFifo.write(currSessionID);
+                        
+                        currMsgHeader.display();
                         currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
                         currSessionState.reset(); // ready to parse next message
@@ -361,6 +454,8 @@ void extract_msg(
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
                     }
                     else{
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "storing sessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                         // In the end of each AXIS, store sessionState and currMsgBody back. 
                         // msgHeader already written out or can be recovered from sessionStateTable. 
                         sessionStateTable[currSessionID] = currSessionState;
@@ -368,6 +463,8 @@ void extract_msg(
                         // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
                         // TODO: or store currMsgBody in URAM. 
                     }
+                    currMsgBody.reset(); // fresh new start for this sesion. 
+                    lockReqFifo.write(lockReq(currRxTransID, LOCK_RELEASE));
                     currAxisState = IDLE;
                 }
                 else{
@@ -437,6 +534,7 @@ void proxy(
 
     static proxy_fsmType proxyFsmState = IDLE;
 
+    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
     std::cout << "mcrouter::proxy fsmState " << proxy_fsmName[(int)proxyFsmState] << std::endl;
     switch (proxyFsmState){
         case IDLE:{
@@ -460,11 +558,13 @@ void proxy(
                     }
                     case PROTOCOL_BINARY_CMD_RGET: { // RGET
         				multiQueue_pop_req.write(mqPopReq(POP, currSessionID)); // get request msg ID;
+                        std::cout << "mcrouter::proxy IDLE POP currSessionID " << currSessionID << std::endl;
                         proxyFsmState = RSP_MQ;
                         break;
                     }
                     case PROTOCOL_BINARY_CMD_RSET: { // RSet
         				multiQueue_pop_req.write(mqPopReq(POP, currSessionID));
+                        std::cout << "mcrouter::proxy IDLE POP currSessionID " << currSessionID << std::endl;
                         proxyFsmState = RSP_MQ;
                         break;
                     }
@@ -487,7 +587,8 @@ void proxy(
         		multiQueue_push.write(insertReq);
                 msgContext srcMsgContext(1, currSessionID);
 
-                std::cout << "GET_DEST currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                std::cout << "mcrouter::proxy GET_DEST currMsgBody.msgID " << currMsgBody.msgID << " currSessionID_dst " << currSessionID_dst << std::endl;
                 s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_INSERT, currMsgBody.msgID, srcMsgContext.output_word(), 0));
                 proxyFsmState = GET_WRITEOUT;
             }
@@ -500,12 +601,14 @@ void proxy(
                     sessionIdFifo_dst.write(currSessionID_dst);
                     msgHeaderFifo_dst.write(currMsgHeader);
                     msgBodyFifo_dst.write(currMsgBody);
+                    currMsgBody.reset();
                     proxyFsmState = IDLE;
                 }
                 else{
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "response.key " << response.key << std::endl;
                     std::cout << "response.op " << response.op << std::endl;
-                    std::cerr << "[ERROR] proxy GET HT insert failed" << std::endl;
+                    std::cout << "[ERROR] proxy GET HT insert failed" << std::endl;
                     proxyFsmState = IDLE;
                 }
             }
@@ -531,7 +634,8 @@ void proxy(
                     proxyFsmState = SET_WRITEOUT;
                 }
                 else{
-                    std::cerr << "[ERROR] proxy GET HT insert failed" << std::endl;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "[ERROR] proxy SET HT insert failed" << std::endl;
                     proxyFsmState = IDLE;
                 }
             }
@@ -543,9 +647,14 @@ void proxy(
                 mqInsertReq<ap_uint<32> > insertReq(sessionID_dst, currMsgBody.msgID);
         		multiQueue_push.write(insertReq);
                 
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                std::cout << "mcrouter::proxy SET_WRITEOUT currSessionID_dst " << currSessionID_dst << std::endl;
+                
                 sessionIdFifo_dst.write(sessionID_dst);
                 msgHeaderFifo_dst.write(currMsgHeader);
                 msgBodyFifo_dst.write(currMsgBody);  
+                currMsgBody.reset();
+
                 currSessionCount_idx += 1;
                 if(currSessionCount_idx < currSessionCount){
                     idxFifo.write(currSessionCount_idx);
@@ -582,6 +691,7 @@ void proxy(
                     sessionIdFifo_dst.write(srcSessionID);
                     msgHeaderFifo_dst.write(currMsgHeader);
                     msgBodyFifo_dst.write(currMsgBody);
+                    currMsgBody.reset();
                     proxyFsmState = RSP_CHECKHT;
                 }
                 else{
@@ -600,7 +710,8 @@ void proxy(
                     proxyFsmState = IDLE;
                 }
                 else{
-                    std::cerr << "[ERROR] proxy GET HT delete/update failed" << std::endl;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "[ERROR] proxy GET HT delete/update failed" << std::endl;
                     proxyFsmState = IDLE;
                 }
             }
@@ -609,38 +720,30 @@ void proxy(
     }
 }
 
-enum lockOP { LOCK_ACQUIRE, LOCK_RELEASE};
-struct lockReq{
-    ap_uint<32> msgID;
-    lockOP opcode;
-    lockReq() {}
-    lockReq(ap_uint<32> m, lockOP o): msgID(m), opcode(o) {}
-};
-
 void txLock(
-    hls::stream<lockReq>& reqFifo, // input
+    hls::stream<lockReq>& lockReqFifo, // input
     hls::stream<ap_uint<1> >& grantFifo // output
 ){
     static ap_uint<1> is_locked = 0;
     static ap_uint<32> currMsgID = 0;
-    if(!reqFifo.empty()){
-        lockReq req = reqFifo.read();
+    if(!lockReqFifo.empty()){
+        lockReq req = lockReqFifo.read();
         if(req.opcode == LOCK_ACQUIRE){
             if(is_locked){
                 if(currMsgID == req.msgID){
                     grantFifo.write(1);
-                    std::cout << "lock acquiring okay: " << req.msgID << std::endl;
+                    std::cout << "txlock acquiring okay: " << req.msgID << std::endl;
                 }
                 else{
                     grantFifo.write(0);
-                    std::cout << "lock acquiring fails: " << req.msgID << std::endl;
+                    std::cout << "txlock acquiring fails: " << req.msgID << std::endl;
                 }
             }
             else{
                 is_locked = 1;
                 currMsgID = req.msgID;
                 grantFifo.write(1);
-                std::cout << "lock acquiring okay: " << req.msgID << std::endl;
+                std::cout << "txlock acquiring okay: " << req.msgID << std::endl;
             }
         }
         else{
@@ -657,7 +760,7 @@ void deparser(
     hls::stream<msgBody>& msgBodyFifo, // input
 	hls::stream<appTxMeta>& txMetaData, 
     hls::stream<net_axis<DATA_WIDTH> >& txData,
-    hls::stream<lockReq>& reqFifo, // output
+    hls::stream<lockReq>& lockReqFifo, // output
     hls::stream<ap_uint<1> >& grantFifo // input
 ){
 #pragma HLS PIPELINE II=2
@@ -667,35 +770,40 @@ void deparser(
     static ap_uint<32> currSendLen;
     static ap_uint<MEMCACHED_HDRLEN*8> hdr;
     static ap_uint<MAX_BODY_LEN> body;
-    static ap_uint<32> currMsgID;
+
+    static ap_uint<16> currSessionID;
+    static msgHeader currMsgHeader;
+    static msgBody currMsgBody;
 
     enum deparser_fsmType{IDLE=0, SEND_HDR, SEND_OTHERS, WAITING_LOCK};
     const char* deparser_fsmName[4] = {"IDLE", "SEND_HDR", "SEND_OTHERS", "WAITING_LOCK"};
     static deparser_fsmType esac_fsmState = IDLE;
 
+    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
     std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)esac_fsmState] << std::endl;
 	switch (esac_fsmState){
     	case IDLE:{
     		if (!txMetaData.full() && !sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
     		{
-                ap_uint<16> currSessionID = sessionIdFifo.read();
-                msgHeader currMsgHeader = msgHeaderFifo.read();
-                msgBody currMsgBody = msgBodyFifo.read();
-                currMsgID = currMsgBody.msgID;
+                currSessionID = sessionIdFifo.read();
+                currMsgHeader = msgHeaderFifo.read();
+                currMsgBody = msgBodyFifo.read();
 
                 requiredSendLen = MEMCACHED_HDRLEN*8 + currMsgHeader.bodyLen*8;
                 currSendLen = 0;
 
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "deparser currMsgHeader.keyLen " << currMsgHeader.keyLen << std::endl;
                 std::cout << "deparser currMsgHeader.bodyLen " << currMsgHeader.bodyLen << std::endl;
 
                 currMsgHeader.display();
+                currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
                 hdr = currMsgHeader.output_word();
                 body = currMsgBody.body;
 
                 txMetaData.write(appTxMeta(currSessionID, requiredSendLen));
 
-                reqFifo.write(lockReq(currMsgID, LOCK_ACQUIRE));
+                lockReqFifo.write(lockReq(currMsgBody.msgID, LOCK_ACQUIRE));
     			esac_fsmState = WAITING_LOCK;
     		}
     		break;
@@ -708,7 +816,7 @@ void deparser(
                     esac_fsmState = SEND_HDR;
                 }
                 else{
-                    reqFifo.write(lockReq(currMsgID, LOCK_ACQUIRE));
+                    lockReqFifo.write(lockReq(currMsgBody.msgID, LOCK_ACQUIRE));
                 }
             }
             break;
@@ -719,6 +827,7 @@ void deparser(
     	        net_axis<DATA_WIDTH> currWord;
                 if(DATA_WIDTH >= requiredSendLen){
                     ap_uint<32> secondPartLen = requiredSendLen - MEMCACHED_HDRLEN*8;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "secondPartLen " << secondPartLen << std::endl;
                     std::cout << "requiredSendLen " << requiredSendLen << std::endl;
                     
@@ -738,11 +847,12 @@ void deparser(
 
                     currSendLen += requiredSendLen;
                     
-                    reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
+                    lockReqFifo.write(lockReq(currMsgBody.msgID, LOCK_RELEASE));
                     esac_fsmState = IDLE;
                 }
                 else{
                     ap_uint<32> secondPartLen = DATA_WIDTH - MEMCACHED_HDRLEN*8;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "secondPartLen " << secondPartLen << std::endl;
                     
                     // currWord.data = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
@@ -765,6 +875,7 @@ void deparser(
                 if(currSendLen < requiredSendLen){
                     ap_uint<16> remainLen = requiredSendLen - currSendLen;
                     ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "remainLen = " << remainLen << std::endl;
 
                     if(DATA_WIDTH >= remainLen){
@@ -774,7 +885,7 @@ void deparser(
                         txData.write(currWord);
         
                         currSendLen += remainLen;
-                        reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
+                        lockReqFifo.write(lockReq(currMsgBody.msgID, LOCK_RELEASE));
                         esac_fsmState = IDLE;
                     }
                     else{
@@ -788,7 +899,7 @@ void deparser(
                     }
                 }
                 else{
-                    reqFifo.write(lockReq(currMsgID, LOCK_RELEASE));
+                    lockReqFifo.write(lockReq(currMsgBody.msgID, LOCK_RELEASE));
                     esac_fsmState = IDLE;
                 }
             }
@@ -815,16 +926,16 @@ void dummy(
     if(!m_axis_upd_rsp.empty()){
         hash_table_16_1024::htUpdateResp<16,1024> response = m_axis_upd_rsp.read();
         if (!response.success){
-            std::cerr << "[ERROR] update failed" << std::endl;
+            std::cout << "[ERROR] update failed" << std::endl;
         }
     }   
     if(!regInsertFailureCount.empty()){
         ap_uint<16> cnt = regInsertFailureCount.read();
-        std::cerr << "[ERROR] insert failed cnt1 " << cnt << std::endl;
+        std::cout << "[ERROR] insert failed cnt1 " << cnt << std::endl;
     }
     if(!regInsertFailureCount2.empty()){
         ap_uint<16> cnt = regInsertFailureCount2.read();
-        std::cerr << "[ERROR] insert failed cnt2 " << cnt << std::endl;
+        std::cout << "[ERROR] insert failed cnt2 " << cnt << std::endl;
     }
 }
 
@@ -962,11 +1073,17 @@ void mcrouter(
     #pragma HLS stream variable=mc_sessionIdFifo3 depth=64
     #pragma HLS stream variable=mc_closedSessionIdFifo depth=64
 
-    static hls::stream<lockReq> m_reqFifo("m_reqFifo");
-    static hls::stream<ap_uint<1> > m_grantFifo("m_grantFifo");
-    #pragma HLS stream variable=m_reqFifo depth=64
-    #pragma HLS DATA_PACK variable=m_reqFifo
-    #pragma HLS stream variable=m_grantFifo depth=64
+    static hls::stream<lockReq> m_lockReqFifo_rx("m_lockReqFifo_rx");
+    static hls::stream<ap_uint<1> > m_grantFifo_rx("m_grantFifo_rx");
+    #pragma HLS stream variable=m_lockReqFifo_rx depth=64
+    #pragma HLS DATA_PACK variable=m_lockReqFifo_rx
+    #pragma HLS stream variable=m_grantFifo_rx depth=64
+
+    static hls::stream<lockReq> m_lockReqFifo_tx("m_lockReqFifo_tx");
+    static hls::stream<ap_uint<1> > m_grantFifo_tx("m_grantFifo_tx");
+    #pragma HLS stream variable=m_lockReqFifo_tx depth=64
+    #pragma HLS DATA_PACK variable=m_lockReqFifo_tx
+    #pragma HLS stream variable=m_grantFifo_tx depth=64
     
     // initing a hash table block
     hash_table_16_1024::hash_table_top(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
@@ -987,9 +1104,11 @@ void mcrouter(
     // handling new data arriving (it might come from a new session), and connection closed
 	notification_handler(notifications, readRequest, mc_closedSessionIdFifo);
     
-    // read data from network and parse them into reqFifo
+    // read data from network and parse them into lockReqFifo
     extract_msg(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, \
-            s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp);
+            s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_lockReqFifo_rx, m_grantFifo_rx);
+    // locking data tx. 
+    rxLock(m_lockReqFifo_rx, m_grantFifo_rx);
 
     // simple hash function 
     simple_hash(mc_keyFifo, mc_hashFifo);
@@ -1002,9 +1121,9 @@ void mcrouter(
             mc_cmdFifo, mc_sessionCountFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3);
 
     // deparsing the res and resp, sending to destination (client or memcached)
-    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData, m_reqFifo, m_grantFifo);
+    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData, m_lockReqFifo_tx, m_grantFifo_tx);
     // locking data tx. 
-    txLock(m_reqFifo, m_grantFifo);
+    txLock(m_lockReqFifo_tx, m_grantFifo_tx);
 
 	dummy(closeConnection, txStatus, m_axis_upd_rsp, regInsertFailureCount, regInsertFailureCount1);
 

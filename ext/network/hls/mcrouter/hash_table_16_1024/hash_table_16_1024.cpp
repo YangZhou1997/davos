@@ -79,6 +79,7 @@ htLookupResp<K,V> lookup(htLookupReq<K> request)
       currentEntries[i] = cuckooTables[i][hashes[i]];
       if (currentEntries[i].valid && currentEntries[i].key == request.key)
       {
+          std::cout << "lookup currentEntries[i].key = " << currentEntries[i].key << std::endl;
          slot = i;
       }
    }
@@ -115,6 +116,7 @@ htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
       currentEntries[i] = cuckooTables[i][hashes[i]];
       if(currentEntries[i].valid && currentEntries[i].key == request.key)
       {
+         std::cout << "delete currentEntries[i].key = " << currentEntries[i].key << std::endl;
          currentEntries[i].valid = false;
          response.success = true;
       }
@@ -123,39 +125,6 @@ htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
 
    return response;
 }
-
-template <int K, int V>
-htUpdateResp<K,V> update(htUpdateReq<K,V> request)
-{
-#pragma HLS INLINE
-
-   htEntry<K,V> currentEntries[NUM_TABLES];
-   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
-   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
-   htUpdateResp<K,V> response;
-   response.op = request.op;
-   response.key = request.key;
-   response.value = request.value;
-   response.source = request.source;
-   response.success = false;
-
-   calculate_hashes(request.key, hashes);
-   //Look for matching key
-   for (int i = 0; i < NUM_TABLES; i++)
-   {
-      #pragma HLS UNROLL
-      currentEntries[i] = cuckooTables[i][hashes[i]];
-      if(currentEntries[i].valid && currentEntries[i].key == request.key)
-      {
-         currentEntries[i].value = request.value;
-         response.success = true;
-      }
-      cuckooTables[i][hashes[i]] = currentEntries[i];
-   }
-
-   return response;
-}
-
 
 template <int K, int V>
 htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
@@ -181,6 +150,7 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
       currentEntries[i] = cuckooTables[i][hashes[i]];
       if(currentEntries[i].valid && currentEntries[i].key == request.key)
       {
+         std::cout << "update_insert currentEntries[i].key = " << currentEntries[i].key << std::endl;
          currentEntries[i].value = request.value;
          response.success = true;
       }
@@ -190,6 +160,8 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
     // update succeeds, return 
     if(response.success)
         return response;
+
+     std::cout << "update_insert request.key = " << request.key << std::endl;
     
     // update fails, do inserting
     static ap_uint<8> victimIdx = 0;
@@ -201,6 +173,7 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
     //Try multiple times
     insertLoop: for (int j = 0; j < MAX_TRIALS; j++)
     {
+       std::cout << "key " << response.key << " tries " << j << std::endl;
         // saving the first hash calculation
         if(j != 0){
            calculate_hashes(currentEntry.key, hashes);
@@ -279,19 +252,14 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
    else if (!s_axis_upd_req.empty())
    {
       htUpdateReq<K,V> request = s_axis_upd_req.read();
-      if(request.op = KV_UPDATE_INSERT){
+      if(request.op == KV_UPDATE_INSERT){
+          std::cout << "update_insert" << std::endl;
          htUpdateResp<K,V> response = update_insert<K,V>(request, regInsertFailureCount);
          m_axis_upd_rsp.write(response);
       }
       else if(request.op == KV_DELETE) //DELETE
       {
          htUpdateResp<K,V> response = remove<K,V>(request);
-         m_axis_upd_rsp.write(response);
-      }
-      // @yang, adding a new function to update value locally. 
-      else if(request.op = KV_UPDATE) //UPDATE
-      {
-         htUpdateResp<K,V> response = update<K,V>(request);
          m_axis_upd_rsp.write(response);
       }
    }

@@ -73,7 +73,7 @@ struct htLookupResp
    ap_uint<1>  source;
 };
 
-typedef enum {KV_DELETE, KV_UPDATE, KV_UPDATE_INSERT} kvOperation;
+typedef enum {KV_DELETE, KV_UPDATE_INSERT} kvOperation;
 
 template <int K, int V>
 struct htUpdateReq

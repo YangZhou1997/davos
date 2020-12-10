@@ -119,6 +119,8 @@ htUpdateResp<K,V> insert(htUpdateReq<K,V> request,
    //Try multiple times
    insertLoop: for (int j = 0; j < MAX_TRIALS; j++)
    {
+       std::cout << "key " << response.key << " tries " << j << std::endl;
+       
       calculate_hashes(currentEntry.key, hashes);
       //Look for free slot
       int slot = -1;

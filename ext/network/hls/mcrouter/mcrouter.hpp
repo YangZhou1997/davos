@@ -40,6 +40,14 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 
 using namespace std;
 
+enum lockOP { LOCK_ACQUIRE, LOCK_RELEASE};
+struct lockReq{
+    ap_uint<32> msgID;
+    lockOP opcode;
+    lockReq() {}
+    lockReq(ap_uint<32> m, lockOP o): msgID(m), opcode(o) {}
+};
+
 struct msgHeader {
     ap_uint<8> magic;
     ap_uint<8> opcode;
