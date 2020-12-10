@@ -305,8 +305,6 @@ void extract_msg(
             if(!m_axis_lup_rsp.empty()){
                 hash_table_16_1024::htLookupResp<16, 1024> response = m_axis_lup_rsp.read();
                 if(response.hit){
-                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                    std::cout << "response.key = " << response.key << ", response.value " << response.value(1023, 992) << std::endl;
                     currMsgBody.consume_word(response.value);
                 }
                 else{

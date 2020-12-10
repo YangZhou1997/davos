@@ -89,12 +89,112 @@ void axisWord2byteArray(uint8_t* data, uint32_t& len, vector<net_axis<DATA_WIDTH
         len += wordLen;
     }
 }
+
 #define NUM_KV 1024
 static vector<string> keys;
 static vector<string> vals;
 static vector<bool> ops;
 static map<string, string> kvMap;
 static queue<net_axis<DATA_WIDTH>> globalWords;
+
+// 62 chars
+static const char* baseStr = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+string getStr(uint32_t startPos, uint32_t length){
+    static char buf[128];
+    if(startPos + length <= strlen(baseStr)){
+        memcpy(buf, baseStr+startPos, length);
+    }
+    else{
+        uint32_t remainLen = startPos + length - strlen(baseStr);
+        memcpy(buf, baseStr+startPos, length-remainLen);
+        memcpy(buf+length-remainLen, baseStr, remainLen);
+    }
+    buf[length] = '\0';
+    return string(buf);
+}
+
+void workload_gen(){    
+    srand(0xdeadbeef);
+    // key: 1-40bytes
+    // value: 1-59bytes
+    for(int i = 0; i < NUM_KV; i++){
+        uint32_t startPos = rand() % strlen(baseStr);
+        uint32_t length = rand() % (40-1) + 1;
+        string key = getStr(startPos, length);
+
+        startPos = rand() % strlen(baseStr);
+        length = rand() % (59-1) + 1;
+        string val = getStr(startPos, length);
+        if(kvMap.find(key) != kvMap.end()){
+            i--;
+            continue;
+        }
+        keys.push_back(key);
+        vals.push_back(val);
+        ops.push_back(rand() % 2);
+        // ops.push_back(0);
+
+        kvMap[key] = val;
+    }
+
+    uint8_t* buf = new uint8_t[NUM_KV*(24+40+59)];
+    int currPos = 0;
+    for(int i = 0; i < NUM_KV; i++){
+        bool op = ops[i];
+        string key = keys[i];
+        string val = vals[i];
+        
+        static protocol_binary_request_header req; 
+        req.request = {
+            .magic = PROTOCOL_BINARY_REQ, 
+            .opcode = PROTOCOL_BINARY_CMD_GET, 
+            .keylen = htons(0),
+            .extlen = 0,
+            .datatype = 0,
+            .reserved = htons(0),
+            .bodylen = htonl(0),
+            .opaque = htonl(i), // used as request id
+            .cas = 0
+        };
+        if(!op){
+            req.request.keylen = htons((uint16_t)key.length());
+            req.request.bodylen = htonl(key.length());
+            memcpy(buf + currPos, req.bytes, 24);
+            currPos += 24;
+            memcpy(buf + currPos, key.c_str(), key.length());
+            currPos += key.length();
+        }
+        else{
+            req.request.opcode = PROTOCOL_BINARY_CMD_SET;
+            req.request.keylen = htons((uint16_t)key.length());
+            req.request.bodylen = htonl(key.length() + val.length());
+            memcpy(buf + currPos, req.bytes, 24);
+            currPos += 24;
+            memcpy(buf + currPos, key.c_str(), key.length());
+            currPos += key.length();
+            memcpy(buf + currPos, val.c_str(), val.length());
+            currPos += val.length();
+        }
+    }
+    // generated all words; 
+    int currPos2 = 0;
+    while(currPos2 < currPos){
+        uint32_t pktlen = rand() % 128 + 128;
+        if(currPos2 + pktlen > currPos){
+            pktlen = currPos - currPos2;
+        }
+        vector<net_axis<DATA_WIDTH>> tmpWords;
+        tmpWords.clear();
+        byteArray2axisWord(buf + currPos2, pktlen, tmpWords);
+        currPos2 += pktlen;
+
+        for(int j = 0; j < tmpWords.size(); j++){
+            globalWords.push(tmpWords[j]);
+        }
+    }
+    delete buf;
+}
 
 void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
     protocol_binary_request_header req;
@@ -176,8 +276,6 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
     }
 }
 
-uint16_t clientSessionID = 32245;
-uint16_t memcachedSessionID = 41235;
 
 void client(
     stream<appNotification>& notifications,
@@ -186,7 +284,8 @@ void client(
     stream<net_axis<DATA_WIDTH> >& rxData,
     stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus
+    stream<appTxRsp>& txStatus, 
+    uint16_t clientSessionID
 ){
     static ap_uint<4> clientState = 0;
     static vector<net_axis<DATA_WIDTH>> rxWords;
@@ -278,7 +377,8 @@ void memcached(
     stream<net_axis<DATA_WIDTH> >& rxData,
     stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus
+    stream<appTxRsp>& txStatus,
+    uint16_t memcachedSessionID
 ){
     static ap_uint<4> mcState = 0;
     static vector<net_axis<DATA_WIDTH>> txWords;
@@ -378,9 +478,6 @@ void memcached(
     }
 }
 
-// static const char* globalKey = "hellohellohellohellohellohellohellohello";
-// static const char* globalVal = "worldworldworldworldworldworldworldworldworldworldworld";
-    
 void client2(
     stream<appNotification>& notifications,
     stream<appReadRequest>& readRequest, 
@@ -388,7 +485,8 @@ void client2(
     stream<net_axis<DATA_WIDTH> >& rxData,
     stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus
+    stream<appTxRsp>& txStatus,
+    uint16_t clientSessionID
 ){
     static ap_uint<4> clientState = 0;    
     static uint32_t idx = 0;
@@ -529,7 +627,8 @@ void memcached2(
     stream<net_axis<DATA_WIDTH> >& rxData,
     stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus
+    stream<appTxRsp>& txStatus,
+    uint16_t memcachedSessionID
 ){
     static ap_uint<4> mcState = 0;
     static vector<net_axis<DATA_WIDTH>> words;
@@ -634,6 +733,7 @@ void memcached2(
         }
     }
 }
+
 template <class T>
 void mux(stream<T>& in1, stream<T>& in2, stream<T>& out){
     if(!in1.empty()){
@@ -646,7 +746,11 @@ void mux(stream<T>& in1, stream<T>& in2, stream<T>& out){
     }
 }
 
-void appReqMux(stream<appReadRequest>& readRequest, stream<appReadRequest>& readRequest1, stream<appReadRequest>& readRequest2){
+void appReqMux(
+    stream<appReadRequest>& readRequest, 
+    stream<appReadRequest>& readRequest1, stream<appReadRequest>& readRequest2, 
+    uint16_t clientSessionID, uint16_t memcachedSessionID
+){
     if(!readRequest.empty()){
         appReadRequest appReq = readRequest.read();
         if(appReq.sessionID == clientSessionID){
@@ -660,8 +764,13 @@ void appReqMux(stream<appReadRequest>& readRequest, stream<appReadRequest>& read
     }
 }
 
-void txMetaMux(stream<appTxMeta>& txMetaData, stream<appTxMeta>& txMetaData1, stream<appTxMeta>& txMetaData2, 
-    stream<net_axis<DATA_WIDTH> >& txData, stream<net_axis<DATA_WIDTH> >& txData1, stream<net_axis<DATA_WIDTH> >& txData2){
+void txMetaMux(
+    stream<appTxMeta>& txMetaData, 
+    stream<appTxMeta>& txMetaData1, stream<appTxMeta>& txMetaData2, 
+    stream<net_axis<DATA_WIDTH> >& txData, 
+    stream<net_axis<DATA_WIDTH> >& txData1, stream<net_axis<DATA_WIDTH> >& txData2, 
+    uint16_t clientSessionID, uint16_t memcachedSessionID
+){
     static ap_uint<4> muxState = 0;
     switch(muxState){
         case 0: {
@@ -704,23 +813,6 @@ void txMetaMux(stream<appTxMeta>& txMetaData, stream<appTxMeta>& txMetaData1, st
     }
 }
 
-// 62 chars
-static const char* baseStr = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-string getStr(uint32_t startPos, uint32_t length){
-    static char buf[128];
-    if(startPos + length <= strlen(baseStr)){
-        memcpy(buf, baseStr+startPos, length);
-    }
-    else{
-        uint32_t remainLen = startPos + length - strlen(baseStr);
-        memcpy(buf, baseStr+startPos, length-remainLen);
-        memcpy(buf+length-remainLen, baseStr, remainLen);
-    }
-    buf[length] = '\0';
-    return string(buf);
-}
-
 int main()
 {
 	stream<ap_uint<16> > listenPort("listenPort");
@@ -754,94 +846,16 @@ int main()
 	stream<net_axis<DATA_WIDTH> > txData2;
 	stream<appTxRsp> txStatus2;
 
-
-    srand(0xdeadbeef);
-
-// key: 1-40bytes
-// value: 1-59bytes
-
-    for(int i = 0; i < NUM_KV; i++){
-        uint32_t startPos = rand() % strlen(baseStr);
-        uint32_t length = rand() % (40-1) + 1;
-        string key = getStr(startPos, length);
-
-        startPos = rand() % strlen(baseStr);
-        length = rand() % (59-1) + 1;
-        string val = getStr(startPos, length);
-        if(kvMap.find(key) != kvMap.end()){
-            i--;
-            continue;
-        }
-        keys.push_back(key);
-        vals.push_back(val);
-        ops.push_back(rand() % 2);
-        // ops.push_back(0);
-
-        kvMap[key] = val;
-    }
-
-    uint8_t* buf = new uint8_t[NUM_KV*(24+40+59)];
-    int currPos = 0;
-    for(int i = 0; i < NUM_KV; i++){
-        bool op = ops[i];
-        string key = keys[i];
-        string val = vals[i];
-        
-        static protocol_binary_request_header req; 
-        req.request = {
-            .magic = PROTOCOL_BINARY_REQ, 
-            .opcode = PROTOCOL_BINARY_CMD_GET, 
-            .keylen = htons(0),
-            .extlen = 0,
-            .datatype = 0,
-            .reserved = htons(0),
-            .bodylen = htonl(0),
-            .opaque = htonl(i), // used as request id
-            .cas = 0
-        };
-        if(!op){
-            req.request.keylen = htons((uint16_t)key.length());
-            req.request.bodylen = htonl(key.length());
-            memcpy(buf + currPos, req.bytes, 24);
-            currPos += 24;
-            memcpy(buf + currPos, key.c_str(), key.length());
-            currPos += key.length();
-        }
-        else{
-            req.request.opcode = PROTOCOL_BINARY_CMD_SET;
-            req.request.keylen = htons((uint16_t)key.length());
-            req.request.bodylen = htonl(key.length() + val.length());
-            memcpy(buf + currPos, req.bytes, 24);
-            currPos += 24;
-            memcpy(buf + currPos, key.c_str(), key.length());
-            currPos += key.length();
-            memcpy(buf + currPos, val.c_str(), val.length());
-            currPos += val.length();
-        }
-    }
-    // generated all words; 
-    int currPos2 = 0;
-    while(currPos2 < currPos){
-        uint32_t pktlen = rand() % 128 + 128;
-        if(currPos2 + pktlen > currPos){
-            pktlen = currPos - currPos2;
-        }
-        vector<net_axis<DATA_WIDTH>> tmpWords;
-        tmpWords.clear();
-        byteArray2axisWord(buf + currPos2, pktlen, tmpWords);
-        currPos2 += pktlen;
-
-        for(int j = 0; j < tmpWords.size(); j++){
-            globalWords.push(tmpWords[j]);
-        }
-    }
-    delete buf;
+    workload_gen();
 
 	int cycleCount = 0;
 	int portOpened = -1;
+    
+    uint16_t clientSessionID = 32245;
+    uint16_t memcachedSessionID = 41235;
 
     static ap_uint<4> tbState = 0;
-   
+    
 	while (cycleCount < 1000)
 	{
         mcrouter(listenPort, listenPortStatus, notifications, readRequest,
@@ -851,18 +865,18 @@ int main()
 #define TEST 1
 
 #if TEST == 1
-        client(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);
-        memcached(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2);
+        client(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1, clientSessionID);
+        memcached(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2, memcachedSessionID);
 #elif TEST == 2
-        client2(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1);
-        memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2);
+        client2(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1, clientSessionID);
+        memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2, memcachedSessionID);
 #endif
 
         mux(notifications1, notifications2, notifications);
-        appReqMux(readRequest, readRequest1, readRequest2);
+        appReqMux(readRequest, readRequest1, readRequest2, clientSessionID, memcachedSessionID);
         mux(rxMetaData1, rxMetaData2, rxMetaData);
         mux(rxData1, rxData2, rxData);
-        txMetaMux(txMetaData, txMetaData1, txMetaData2, txData, txData1, txData2);
+        txMetaMux(txMetaData, txMetaData1, txMetaData2, txData, txData1, txData2, clientSessionID, memcachedSessionID);
         mux(txStatus1, txStatus2, txStatus);
         
 		switch(tbState){
