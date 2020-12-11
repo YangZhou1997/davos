@@ -289,12 +289,6 @@ void extract_msg(
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
                 rxMetaData.read(currSessionID);
-                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "mcrouter::extract_msg rxMetaData.sessionID " << currSessionID << std::endl;
-                // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
-                currSessionState = sessionStateTable[currSessionID];
-                currAxisState = READ_WORD;
-
                 s_axis_lup_req.write(hash_table_16_1024::htLookupReq<16>(currSessionID, 0));
                 currAxisState = RECOVER_STATE;
             }
@@ -329,6 +323,11 @@ void extract_msg(
                 ap_uint<1> grant = grantFifo.read();
                 if(grant){
                     currAxisState = READ_WORD;
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "mcrouter::extract_msg rxMetaData.sessionID " << currSessionID << std::endl;
+                    // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
+                    currSessionState = sessionStateTable[currSessionID];
+                    currSessionState.display();
                 }
                 else{
                     lockReqFifo.write(lockReq(currRxTransID, LOCK_ACQUIRE));
@@ -368,8 +367,10 @@ void extract_msg(
 
                         currSessionState.requiredLen = currMsgHeader.bodyLen + MEMCACHED_HDRLEN;
                         
-                        ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currSessionState.currBodyLen;
-                        if(requiredBodyLen > 0){
+                        std::cout << "currSessionState.requiredLen=" << currSessionState.requiredLen 
+                            << " MEMCACHED_HDRLEN + currSessionState.currBodyLen=" << MEMCACHED_HDRLEN + currSessionState.currBodyLen
+                            << std::endl;
+                        if(currSessionState.requiredLen > MEMCACHED_HDRLEN + currSessionState.currBodyLen){
                             parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init);
                         }
                         else{
@@ -384,8 +385,10 @@ void extract_msg(
                 }
                 else{
                     currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
-                    ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currSessionState.currBodyLen;
-                    if(requiredBodyLen > 0){
+                    std::cout << "currSessionState.requiredLen=" << currSessionState.requiredLen 
+                        << " MEMCACHED_HDRLEN + currSessionState.currBodyLen=" << MEMCACHED_HDRLEN + currSessionState.currBodyLen
+                        << std::endl;
+                    if(currSessionState.requiredLen > MEMCACHED_HDRLEN + currSessionState.currBodyLen){
                         parsingMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen, currWordValidLen_init);
                     }
                     else{
@@ -448,6 +451,7 @@ void extract_msg(
 
                         currSessionState.reset(); // ready to parse next message
                         sessionStateTable[currSessionID] = currSessionState;
+                        sessionStateTable[currSessionID].display();
                         // removing currMsgBody from the hash table. 
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
                     }
@@ -457,6 +461,7 @@ void extract_msg(
                         // In the end of each AXIS, store sessionState and currMsgBody back. 
                         // msgHeader already written out or can be recovered from sessionStateTable. 
                         sessionStateTable[currSessionID] = currSessionState;
+                        currSessionState.reset();
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
                         // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
                         // TODO: or store currMsgBody in URAM. 
@@ -466,6 +471,33 @@ void extract_msg(
                     currAxisState = IDLE;
                 }
                 else{
+                    if(parsingMsgState){
+                        currMsgBody.extInl = 1;
+                        currMsgBody.keyInl = 1;
+                        currMsgBody.valInl = 1;
+                        
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "writing currMsgBody (path3) for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                        // !!! only write out when current msg is parsed
+                        msgHeaderFifo.write(currMsgHeader);
+                        msgBodyFifo.write(currMsgBody);
+                        sessionIdFifo.write(currSessionID);
+
+                        currMsgHeader.display();
+                        currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
+
+                        // the AXIS for current session still has data to parse; we do not need to store currSessionState back.  
+                        // sessionStateTable[currSessionID] = currSessionState;
+
+                        currSessionState.reset(); // ready to parse next message
+
+                        currMsgBody.reset(); // fresh new start for this sesion. 
+                        currMsgBody.msgID = currentMsgID;
+                        currentMsgID++;
+
+                        // removing currMsgBody from the hash table. 
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
+                    }
                     currAxisState = READ_WORD;
                 }
             }
@@ -503,9 +535,9 @@ void proxy(
     hls::stream<msgBody>&                   msgBodyFifo_dst, // output
     hls::stream<ap_uint<MAX_KEY_LEN> >&     keyFifo, 
     hls::stream<ap_uint<32> >&              hashFifo,
-    hls::stream<mqInsertReq<ap_uint<32>> >& multiQueue_push, 
-    hls::stream<mqPopReq>&				    multiQueue_pop_req, 
-    hls::stream<ap_uint<32>>&				multiQueue_rsp,
+    hls::stream<mqInsertReq<ap_uint<32>> >& multiQueue_push, // output to mq
+    hls::stream<mqPopReq>&				    multiQueue_pop_req, // output to mq
+    hls::stream<ap_uint<32>>&				multiQueue_rsp, // input from mq
     hls::stream<hash_table_32_32::htLookupReq<32> >&          s_axis_lup_req, 
     hls::stream<hash_table_32_32::htUpdateReq<32,32> >&       s_axis_upd_req, 
     hls::stream<hash_table_32_32::htLookupResp<32,32> >&      m_axis_lup_rsp,
@@ -594,6 +626,7 @@ void proxy(
         }
         case GET_WRITEOUT:{
             if(!m_axis_upd_rsp.empty()){
+                // let's assume ht is not gonna full ever. 
                 hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
                 if (response.success){
                     sessionIdFifo_dst.write(currSessionID_dst);
@@ -669,6 +702,7 @@ void proxy(
         	{
         		ap_uint<32> srcMsgID = multiQueue_rsp.read();
                 s_axis_lup_req.write(hash_table_32_32::htLookupReq<32>(srcMsgID, 0));
+
                 proxyFsmState = RSP_HT;
             }
             break;
@@ -687,6 +721,8 @@ void proxy(
                     srcMsgContext = msgContext(numRsp-1, srcSessionID);
                     s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_DELETE, srcMsgID, srcMsgContext.output_word(), 0));
                     sessionIdFifo_dst.write(srcSessionID);
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "srcSessionID =" << srcSessionID << std::endl;
                     msgHeaderFifo_dst.write(currMsgHeader);
                     msgBodyFifo_dst.write(currMsgBody);
                     currMsgBody.reset();
@@ -1089,7 +1125,7 @@ void mcrouter(
 
     // initing a multi queue block
     // multi_queue<ap_uint<32>, MAX_CONNECTED_SESSIONS, MAX_CONNECTED_SESSIONS*16>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
-    multi_queue<ap_uint<32>, 65535, 65535*16>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
+    multi_queue<ap_uint<32>, 65535, 65535*320>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
 
     // opening the mcrouter listening port
 	open_port(listenPort, listenPortStatus);

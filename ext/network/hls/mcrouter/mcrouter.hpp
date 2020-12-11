@@ -163,12 +163,22 @@ struct sessionState {
     
     sessionState() {}
     void reset() {
+        msgHeaderBuff = 0;
+        
         parsingHeaderState = 0;
         parsingBodyState = 0;
 
         requiredLen = 0;
         currHdrLen = 0;
         currBodyLen = 0;
+    }
+
+    void display(){
+        cout << "parsingHeaderState " << dec << parsingHeaderState << endl;
+        cout << "parsingBodyState " << dec << parsingBodyState << endl;
+        cout << "requiredLen " << dec << requiredLen << endl;
+        cout << "currHdrLen " << dec << currHdrLen << endl;
+        cout << "currBodyLen " << dec << currBodyLen << endl;
     }
 };
 

@@ -313,6 +313,7 @@ void client(
                     break;
                 }
             }
+
             appNotification notific(clientSessionID, currLen, 0, 0, false);
             notifications.write(notific);
             clientState = 1;
@@ -325,7 +326,6 @@ void client(
                 cout << "client sends data: session " << appReq.sessionID << ", length " << appReq.length << endl;
 
                 rxMetaData.write(clientSessionID);            
-                cout << "rxWords.size() = " << rxWords.size() << endl;
 
                 for(int i = 0; i < rxWords.size(); i++){
                     rxData.write(rxWords[i]);
@@ -385,9 +385,21 @@ void memcached(
     static vector<net_axis<DATA_WIDTH>> rxWords;
     
     switch(mcState){
-        case 0: {
+        case 0: {            
+            // !!! send out rxWords is the first task -- this makes sure every request to memcached has a response back. 
+            // !!! after we send it out, we can process txMetaData and jump to mcState of 1
+            // memcached sends response to mcrouter
+            if(!readRequest.empty()){
+                appReadRequest appReq = readRequest.read();
+                cout << "memcached sends data: session " << dec << appReq.sessionID << ", length" << appReq.length << endl;
+                rxMetaData.write(memcachedSessionID);
+
+                for(int i = 0; i < rxWords.size(); i++){
+                    rxData.write(rxWords[i]);
+                }
+            }
             // memcached waiting to receive request from mcrouter. 
-            if(!txMetaData.empty()){
+            else if(!txMetaData.empty()){
                 appTxMeta txMeta = txMetaData.read();
                 if(txMeta.sessionID == memcachedSessionID){
                     uint32_t length = txMeta.length;
@@ -395,16 +407,6 @@ void memcached(
                     txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
                     txWords.clear();
                     mcState = 1;
-                }
-            }
-            // memcached sends response to mcrouter
-            else if(!readRequest.empty()){
-                appReadRequest appReq = readRequest.read();
-                cout << "memcached sends data: session " << dec << appReq.sessionID << ", length" << appReq.length << endl;
-                rxMetaData.write(memcachedSessionID);
-
-                for(int i = 0; i < rxWords.size(); i++){
-                    rxData.write(rxWords[i]);
                 }
             }
             break;
