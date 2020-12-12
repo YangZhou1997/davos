@@ -64,6 +64,13 @@ void open_port(
 	}//switch
 }
 
+struct sessionID_stream{
+    ap_uint<16> sessionID;
+    ap_uint<1> last;
+    sessionID_stream() {}
+    sessionID_stream(ap_uint<16> s, ap_uint<1> l): sessionID(s), last(l) {}
+};
+
 // TODO: 
 // return a list of sessionID. 
 // EOF, SOF. 
@@ -75,6 +82,7 @@ void connect_memcached(
     // you should separate the following fifos, as their rspFifo are not handled by a single function. 
     hls::stream<ap_uint<2> >& cmdFifo, //input
     hls::stream<ap_uint<16> >& sessionCountFifo, //output
+    hls::stream<sessionID_stream>& sessionIdStreamFifo, //output
     hls::stream<ap_uint<32> >& hashValFifo, //input
     hls::stream<ap_uint<16> >& sessionIdFifo2, //output
     hls::stream<ap_uint<16> >& idxFifo, //input
@@ -96,14 +104,54 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
 #pragma HLS ARRAY_PARTITION variable=connectedSessionsSts complete
 #pragma HLS DEPENDENCE variable=connectedSessionsSts inter false
 
-static ap_uint<16> sessionCount = 0;
+    static ap_uint<16> sessionCount = 0;
 
-// switch()
+    static ap_uint<2> sessionOutState = 0;
+    static ap_uint<16> sessionIdx = 0;
+
+    switch(sessionOutState) {
+        case 0: {
+            if(!cmdFifo.empty()){
+                ap_uint<2> cmd = cmdFifo.read();
+                switch(cmd) {
+                    case 0:{
+                        sessionCountFifo.write(sessionCount);
+                        
+                        if(sessionCount > 1){// needs consective writeout;
+                            sessionOutState = 1;
+                            sessionIdx = sessionCount-2;
+                            sessionIdStreamFifo.write(sessionID_stream(connectedSessions[sessionCount-1], 0));
+                        }
+                        else{
+                            sessionIdStreamFifo.write(sessionID_stream(connectedSessions[sessionCount-1], 1));
+                        }
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case 1:{
+            if(sessionIdx != 0){
+                sessionIdStreamFifo.write(sessionID_stream(connectedSessions[sessionIdx], 0));
+                sessionIdx -= 1;
+            }
+            else{
+                sessionIdStreamFifo.write(sessionID_stream(connectedSessions[sessionIdx], 1));
+                sessionOutState = 0;
+            }
+            break;
+        }
+    }
+
+    // ??? you should use "else if"; 
+    // if you just use "if", hls will think of you want to parallel the five block
+    //, and check the data dependency, and reduce the II. 
     if (!openTuples.empty()){
         ipTuple tuple = openTuples.read();
 		openConnection.write(tuple);
     }
-	else if (!openConStatus.empty())
+	if (!openConStatus.empty())
 	{
 		openStatus newConn = openConStatus.read();
 		if (newConn.success)
@@ -113,25 +161,13 @@ static ap_uint<16> sessionCount = 0;
             sessionCount += 1;
 		}
 	}
-    // you should use "else if"; 
-    // if you just use "if", hls will think of you want to parallel the five block
-    //, and check the data dependency, and reduce the II. 
-    else if(!cmdFifo.empty()){
-        ap_uint<2> cmd = cmdFifo.read();
-        switch(cmd) {
-            case 0:{
-                sessionCountFifo.write(sessionCount);
-                break;
-            }
-        }
-    }
-    else if(!hashValFifo.empty()){
+    if(!hashValFifo.empty()){
         ap_uint<32> hashVal = hashValFifo.read();
         // TODO: handling closed connections, or in policy engine
         ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1)) % sessionCount;
         sessionIdFifo2.write(connectedSessions[idx]);
     }
-    else if(!idxFifo.empty()){
+    if(!idxFifo.empty()){
         ap_uint<16> idx = idxFifo.read();
         // TODO: handling closed connections, or in policy engine
         sessionIdFifo3.write(connectedSessions[idx]);
@@ -543,7 +579,8 @@ void proxy(
     hls::stream<hash_table_32_32::htLookupResp<32,32> >&      m_axis_lup_rsp,
     hls::stream<hash_table_32_32::htUpdateResp<32,32> >&      m_axis_upd_rsp,
     hls::stream<ap_uint<2> >&  cmdFifo,
-    hls::stream<ap_uint<16> >& sessionCountFifo, 
+    hls::stream<ap_uint<16> >& sessionCountFifo, //input
+    hls::stream<sessionID_stream >& sessionIdStreamFifo, 
     hls::stream<ap_uint<32> >& mc_hashValFifo,
     hls::stream<ap_uint<16> >& sessionIdFifo2,
     hls::stream<ap_uint<16> >& idxFifo,
@@ -556,11 +593,9 @@ void proxy(
     static msgHeader currMsgHeader;
     static msgBody currMsgBody;
     static ap_uint<16> currSessionID_dst;
-    static ap_uint<16> currSessionCount;
-    static ap_uint<16> currSessionCount_idx;
     
-    enum proxy_fsmType {IDLE=0, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_WRITEOUT, RSP_MQ, RSP_HT, RSP_CHECKHT};
-    const char * proxy_fsmName[10] = {"IDLE", "GET_HASH", "GET_DEST", "GET_WRITEOUT", "SET_RANGE", "SET_CHECKHT", "SET_WRITEOUT", "RSP_MQ", "RSP_HT", "RSP_CHECKHT"};
+    enum proxy_fsmType {IDLE=0, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_BROADCAST, RSP_MQ, RSP_HT, RSP_CHECKHT};
+    const char * proxy_fsmName[10] = {"IDLE", "GET_HASH", "GET_DEST", "GET_WRITEOUT", "SET_RANGE", "SET_CHECKHT", "SET_BROADCAST", "RSP_MQ", "RSP_HT", "RSP_CHECKHT"};
 
     static proxy_fsmType proxyFsmState = IDLE;
 
@@ -620,19 +655,22 @@ void proxy(
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "mcrouter::proxy GET_DEST currMsgBody.msgID " << currMsgBody.msgID << " currSessionID_dst " << currSessionID_dst << std::endl;
                 s_axis_upd_req.write(hash_table_32_32::htUpdateReq<32, 32>(hash_table_32_32::KV_INSERT, currMsgBody.msgID, srcMsgContext.output_word(), 0));
+     
+                sessionIdFifo_dst.write(currSessionID_dst);
+                msgHeaderFifo_dst.write(currMsgHeader);
+                msgBodyFifo_dst.write(currMsgBody);
+                currMsgBody.reset();
+        
                 proxyFsmState = GET_WRITEOUT;
             }
             break;
         }
+        // !!! just for simultion happy; can be removed 
         case GET_WRITEOUT:{
             if(!m_axis_upd_rsp.empty()){
                 // let's assume ht is not gonna full ever. 
                 hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
                 if (response.success){
-                    sessionIdFifo_dst.write(currSessionID_dst);
-                    msgHeaderFifo_dst.write(currMsgHeader);
-                    msgBodyFifo_dst.write(currMsgBody);
-                    currMsgBody.reset();
                     proxyFsmState = IDLE;
                 }
                 else{
@@ -647,8 +685,7 @@ void proxy(
         }
         case SET_RANGE:{
             if(!sessionCountFifo.empty()){
-                currSessionCount = sessionCountFifo.read();
-                currSessionCount_idx = 0;
+                ap_uint<16> currSessionCount = sessionCountFifo.read();
 
                 // update msg context table
                 msgContext srcMsgContext(currSessionCount, currSessionID);
@@ -657,12 +694,12 @@ void proxy(
             }
             break;
         }
+        // !!! just for simultion happy; can be removed 
         case SET_CHECKHT: {
             if(!m_axis_upd_rsp.empty()){
                 hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
                 if (response.success){
-                    idxFifo.write(currSessionCount_idx);
-                    proxyFsmState = SET_WRITEOUT;
+                    proxyFsmState = SET_BROADCAST;
                 }
                 else{
                     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
@@ -672,27 +709,25 @@ void proxy(
             }
             break;
         }
-        case SET_WRITEOUT:{
-            if(!sessionIdFifo3.empty()){
-                ap_uint<16> sessionID_dst = sessionIdFifo3.read();
-                mqInsertReq<ap_uint<32> > insertReq(sessionID_dst, currMsgBody.msgID);
+        case SET_BROADCAST:{
+            if(!sessionIdStreamFifo.empty()){
+                sessionID_stream sessionID_dst = sessionIdStreamFifo.read();
+                mqInsertReq<ap_uint<32> > insertReq(sessionID_dst.sessionID, currMsgBody.msgID);
         		multiQueue_push.write(insertReq);
                 
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "mcrouter::proxy SET_WRITEOUT currSessionID_dst " << currSessionID_dst << std::endl;
+                std::cout << "mcrouter::proxy SET_BROADCAST sessionID_dst.sessionID " << sessionID_dst.sessionID << std::endl;
                 
-                sessionIdFifo_dst.write(sessionID_dst);
+                sessionIdFifo_dst.write(sessionID_dst.sessionID);
                 msgHeaderFifo_dst.write(currMsgHeader);
                 msgBodyFifo_dst.write(currMsgBody);  
                 currMsgBody.reset();
 
-                currSessionCount_idx += 1;
-                if(currSessionCount_idx < currSessionCount){
-                    idxFifo.write(currSessionCount_idx);
-                    proxyFsmState = SET_WRITEOUT;
+                if(sessionID_dst.last){
+                    proxyFsmState = IDLE;
                 }
                 else{
-                    proxyFsmState = IDLE;
+                    proxyFsmState = SET_BROADCAST;
                 }
             }
             break;
@@ -737,6 +772,7 @@ void proxy(
             }   
             break;
         }
+        // !!! this (empty) stage is critical to make simulation work, as it let the last hash table update finish before next read. 
         case RSP_CHECKHT: {
             if(!m_axis_upd_rsp.empty()){
                 hash_table_32_32::htUpdateResp<32,32> response = m_axis_upd_rsp.read();
@@ -749,6 +785,8 @@ void proxy(
                     proxyFsmState = IDLE;
                 }
             }
+            // proxyFsmState = IDLE;
+
             break;
         }
     }
@@ -1094,6 +1132,7 @@ void mcrouter(
 
 	static hls::stream<ap_uint<2> >	    mc_cmdFifo("mc_cmdFifo");
 	static hls::stream<ap_uint<16> >	mc_sessionCountFifo("mc_sessionCountFifo");
+	static hls::stream<sessionID_stream>	mc_sessionIdStreamFifo("mc_sessionIdStreamFifo");
 	static hls::stream<ap_uint<32> >	mc_hashValFifo("mc_hashValFifo");
 	static hls::stream<ap_uint<16> >	mc_sessionIdFifo2("mc_sessionIdFifo2");
 	static hls::stream<ap_uint<16> >	mc_idxFifo("mc_idxFifo");
@@ -1101,6 +1140,7 @@ void mcrouter(
 	static hls::stream<ap_uint<16> >    mc_closedSessionIdFifo("mc_closedSessionIdFifo");
     #pragma HLS stream variable=mc_cmdFifo depth=64
     #pragma HLS stream variable=mc_sessionCountFifo depth=64
+    #pragma HLS stream variable=mc_sessionIdStreamFifo depth=64
     #pragma HLS stream variable=mc_hashValFifo depth=64
     #pragma HLS stream variable=mc_sessionIdFifo2 depth=64
     #pragma HLS stream variable=mc_idxFifo depth=64
@@ -1132,7 +1172,7 @@ void mcrouter(
 
     // connecting to remote memcached;
     connect_memcached(openTuples, openConStatus, openConnection, \
-            mc_cmdFifo, mc_sessionCountFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, \
+            mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, \
             mc_closedSessionIdFifo);
     
     // handling new data arriving (it might come from a new session), and connection closed
@@ -1152,7 +1192,7 @@ void mcrouter(
     proxy(mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, \
             mc_keyFifo, mc_hashFifo, multiQueue_push, multiQueue_pop_req, multiQueue_rsp, \
             s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1,\
-            mc_cmdFifo, mc_sessionCountFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3);
+            mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3);
 
     // deparsing the res and resp, sending to destination (client or memcached)
     deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txData, m_lockReqFifo_tx, m_grantFifo_tx);
