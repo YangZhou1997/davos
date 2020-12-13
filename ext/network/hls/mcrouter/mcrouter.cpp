@@ -109,6 +109,7 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
     static ap_uint<2> sessionOutState = 0;
     static ap_uint<16> sessionIdx = 0;
 
+    // this actually causes II=1 violation 
     switch(sessionOutState) {
         case 0: {
             if(!cmdFifo.empty()){
@@ -165,6 +166,7 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
         ap_uint<32> hashVal = hashValFifo.read();
         // TODO: handling closed connections, or in policy engine
         ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1)) % sessionCount;
+        // ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1));
         sessionIdFifo2.write(connectedSessions[idx]);
     }
     if(!idxFifo.empty()){

@@ -36,23 +36,42 @@ void test(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-	static ap_uint<1> fsmState = 0;
     static ap_uint<16> globalIn = 0;
 
-	switch (fsmState)
-	{
-	case 0:
-        if(!input.empty()){
-            globalIn = input.read();
-            fsmState = 1;
-        }
-		break;
-    case 1: 
+	// static ap_uint<1> fsmState = 0;
+	// switch (fsmState)
+	// {
+	// case 0:
+    //     if(!input.empty()){
+    //         globalIn = input.read();
+    //         fsmState = 1;
+    //     }
+	// 	break;
+    // case 1: 
+    //     output.write(globalIn);
+    //     fsmState = 0;
+    //     break;
+	// }
+    if(!input.empty()) {
+        globalIn = input.read();
         output.write(globalIn);
-        fsmState = 0;
-        break;
-	}
+    }
 }
+
+void test2(
+    hls::stream<ap_uint<16> >& input,
+	hls::stream<ap_uint<16> >& output
+){
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+
+    static ap_uint<16> globalIn = 0;
+    if(!input.empty()) {
+        globalIn = input.read();
+        output.write(globalIn);
+    }
+}
+
 void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output)
 {
 	#pragma HLS DATAFLOW disable_start_propagation
@@ -61,5 +80,9 @@ void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output
 #pragma HLS INTERFACE axis register port=input name=s_axis_input_port
 #pragma HLS INTERFACE axis register port=output name=m_axis_output_port
 
-    test(input, output);
+    static hls::stream<ap_uint<16> > tmpInput;
+    #pragma HLS stream variable=tmpInput depth=64
+
+    test(input, tmpInput);
+    test2(tmpInput, output);
 }
