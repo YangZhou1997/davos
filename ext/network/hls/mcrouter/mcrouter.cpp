@@ -75,7 +75,7 @@ struct sessionID_stream{
 // return a list of sessionID. 
 // EOF, SOF. 
 // return a specific sessionID
-void connect_memcached(
+void conn_manager(
     hls::stream<ipTuple>& openTuples, //input
     hls::stream<openStatus>& openConStatus, //input
     hls::stream<ipTuple>& openConnection, //output 
@@ -144,7 +144,7 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
         }
     }
 
-    // ??? you should use "else if"; 
+    // !!!??? you should use "else if"; 
     // if you just use "if", hls will think of you want to parallel the five block
     //, and check the data dependency, and reduce the II. 
     if (!openTuples.empty()){
@@ -246,6 +246,9 @@ void rxLock(
     hls::stream<lockReq>& lockReqFifo, // input
     hls::stream<ap_uint<1> >& grantFifo // output
 ){
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+
     static ap_uint<1> is_locked = 0;
     static ap_uint<32> currMsgID = 0;
     if(!lockReqFifo.empty()){
@@ -277,7 +280,7 @@ void rxLock(
     }
 }
 
-void extract_msg(
+void parser(
     hls::stream<ap_uint<16> >& rxMetaData, // input
 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
     hls::stream<ap_uint<16> >& sessionIdFifo, // output
@@ -289,7 +292,7 @@ void extract_msg(
     hls::stream<lockReq>& lockReqFifo, // output
     hls::stream<ap_uint<1> >& grantFifo // input
 ){
-#pragma HLS PIPELINE II=3
+#pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
     // generating globally unique msgID. 
     static ap_uint<32> currentMsgID = 1;
@@ -305,7 +308,9 @@ void extract_msg(
     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
 
     enum axisFsmType {IDLE, RECOVER_STATE, WAITING_LOCK, READ_WORD, PARSE_WORD};
+#ifndef __SYNTHESIS__
     const char* axisFsmName[5] = {"IDLE", "RECOVER_STATE", "WAITING_LOCK", "READ_WORD", "PARSE_WORD"};
+#endif
     static axisFsmType currAxisState = IDLE;
 
 	static ap_uint<16>          currSessionID; // valid when currAxisState becomes on-going
@@ -318,9 +323,10 @@ void extract_msg(
     static ap_uint<16>          currWordValidLen_init; // the available length of currWord
     static ap_uint<16>          currWordValidLen; // the current waiting-for-parsing length of currWord
     
+#ifndef __SYNTHESIS__
     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-
-    std::cout << "mcrouter::extract_msg fsmState " << axisFsmName[(int)currAxisState] << std::endl;
+    std::cout << "mcrouter::parser fsmState " << axisFsmName[(int)currAxisState] << std::endl;
+#endif
     switch (currAxisState){
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
@@ -360,7 +366,7 @@ void extract_msg(
                 if(grant){
                     currAxisState = READ_WORD;
                     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                        std::cout << "mcrouter::extract_msg rxMetaData.sessionID " << currSessionID << std::endl;
+                        std::cout << "mcrouter::parser rxMetaData.sessionID " << currSessionID << std::endl;
                     // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
                     currSessionState = sessionStateTable[currSessionID];
                     currSessionState.display();
@@ -383,6 +389,10 @@ void extract_msg(
             }
             break;
         }
+        // case LSHIFT_WORD: {
+            
+        //     break;
+        // }
         // consuming currWord 
         case PARSE_WORD: {
             if(currWordValidLen > 0){
@@ -391,6 +401,7 @@ void extract_msg(
                     ap_uint<5> requiredHeaderLen = MEMCACHED_HDRLEN - currSessionState.currHdrLen;
                     if(currWordValidLen >= requiredHeaderLen){
                         currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, 0) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-requiredHeaderLen*8);
+                        
                         currWordValidLen -= requiredHeaderLen;
                         currSessionState.currHdrLen += requiredHeaderLen;
                         currSessionState.parsingHeaderState = 1; // header is parsed. 
@@ -398,7 +409,7 @@ void extract_msg(
                         currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
                         
                         if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                        std::cout << "extract_msg receives data" << std::endl;
+                        std::cout << "parser receives data" << std::endl;
                         currMsgHeader.display();
 
                         currSessionState.requiredLen = currMsgHeader.bodyLen + MEMCACHED_HDRLEN;
@@ -595,12 +606,17 @@ void proxy(
     static ap_uint<16> currSessionID_dst;
     
     enum proxy_fsmType {IDLE=0, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_BROADCAST, RSP_MQ, RSP_HT, RSP_CHECKHT};
+
+#ifndef __SYNTHESIS__
     const char * proxy_fsmName[10] = {"IDLE", "GET_HASH", "GET_DEST", "GET_WRITEOUT", "SET_RANGE", "SET_CHECKHT", "SET_BROADCAST", "RSP_MQ", "RSP_HT", "RSP_CHECKHT"};
+#endif
 
     static proxy_fsmType proxyFsmState = IDLE;
 
+#ifndef __SYNTHESIS__
     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
     std::cout << "mcrouter::proxy fsmState " << proxy_fsmName[(int)proxyFsmState] << std::endl;
+#endif
     switch (proxyFsmState){
         case IDLE:{
             if(!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty()){
@@ -796,6 +812,9 @@ void txLock(
     hls::stream<lockReq>& lockReqFifo, // input
     hls::stream<ap_uint<1> >& grantFifo // output
 ){
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+
     static ap_uint<1> is_locked = 0;
     static ap_uint<32> currMsgID = 0;
     if(!lockReqFifo.empty()){
@@ -835,7 +854,7 @@ void deparser(
     hls::stream<lockReq>& lockReqFifo, // output
     hls::stream<ap_uint<1> >& grantFifo // input
 ){
-#pragma HLS PIPELINE II=2
+#pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
     static ap_uint<32> requiredSendLen;
@@ -848,11 +867,15 @@ void deparser(
     static msgBody currMsgBody;
 
     enum deparser_fsmType{IDLE=0, SEND_HDR, SEND_OTHERS, WAITING_LOCK};
+#ifndef __SYNTHESIS__
     const char* deparser_fsmName[4] = {"IDLE", "SEND_HDR", "SEND_OTHERS", "WAITING_LOCK"};
+#endif
     static deparser_fsmType esac_fsmState = IDLE;
 
+#ifndef __SYNTHESIS__
     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
     std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)esac_fsmState] << std::endl;
+#endif
 	switch (esac_fsmState){
     	case IDLE:{
     		if (!txMetaData.full() && !sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
@@ -989,7 +1012,11 @@ void dummy(
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
-	
+    // you must use each FIFO in order to make it get synthesized into IP
+    if(!closeConnection.full()){
+    	closeConnection.write(0);
+    }
+
     if (!txStatus.empty()) //Make Checks
 	{
 		txStatus.read();
@@ -1165,21 +1192,20 @@ void mcrouter(
 
     // initing a multi queue block
     // multi_queue<ap_uint<32>, MAX_CONNECTED_SESSIONS, MAX_CONNECTED_SESSIONS*16>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
-    multi_queue<ap_uint<32>, 65535, 65535*320>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
+    multi_queue<ap_uint<32>, 65535, 65535*8>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
 
     // opening the mcrouter listening port
 	open_port(listenPort, listenPortStatus);
 
     // connecting to remote memcached;
-    connect_memcached(openTuples, openConStatus, openConnection, \
-            mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, \
-            mc_closedSessionIdFifo);
+    conn_manager(openTuples, openConStatus, openConnection, mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, \
+            mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, mc_closedSessionIdFifo);
     
     // handling new data arriving (it might come from a new session), and connection closed
 	notification_handler(notifications, readRequest, mc_closedSessionIdFifo);
     
     // read data from network and parse them into lockReqFifo
-    extract_msg(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, \
+    parser(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, \
             s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_lockReqFifo_rx, m_grantFifo_rx);
     // locking data tx. 
     rxLock(m_lockReqFifo_rx, m_grantFifo_rx);
