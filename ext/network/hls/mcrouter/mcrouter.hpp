@@ -163,7 +163,7 @@ struct sessionState {
     
     sessionState() {}
     void reset() {
-        msgHeaderBuff = 0;
+        // msgHeaderBuff = 0;
         
         parsingHeaderState = 0;
         parsingBodyState = 0;

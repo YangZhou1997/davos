@@ -54,8 +54,9 @@ void test(
 	// }
     if(!input.empty()) {
         globalIn = input.read();
-        output.write(globalIn);
+        globalIn += 1;
     }
+    output.write(globalIn);
 }
 
 void test2(
