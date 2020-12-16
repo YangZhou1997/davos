@@ -215,32 +215,135 @@ void notification_handler(
 
 #define MAX_SESSION_NUM ((1 << 16) - 1)
 
-void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
-    net_axis<DATA_WIDTH>& currWord, ap_uint<16>& currWordValidLen, ap_uint<16>& currWordValidLen_init){
+// consume currWord;
+// update currSessionState, currMsgBody, currMsgHeader, currWordValidLen, currWordParsingPos;
+void parseMsgHeader(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, net_axis<DATA_WIDTH>& currWord, \
+    ap_uint<32>& currWordValidLen, ap_uint<32>& currWordParsingPos, ap_uint<32>& currWordValidLen1, ap_uint<32>& currWordParsingPos1, ap_uint<16>& currSessionID, \
+    hls::stream<ap_uint<16> >& sessionIdFifo, hls::stream<msgHeader>& msgHeaderFifo, hls::stream<msgBody>& msgBodyFifo, \
+    ap_uint<4>& ret
+){
+#pragma HLS INLINE
+    // not enough to cover a header 
+    if(currWordValidLen < MEMCACHED_HDRLEN){
+        currSessionState.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, MEMCACHED_HDRLEN*8-currWordValidLen*8) = 
+            currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
+        
+        currSessionState.parsingHeaderState = 0;
+        currSessionState.currHdrLen = currWordValidLen;
+        currSessionState.currBodyLen = 0;
+
+        currWordValidLen1 = currWordValidLen;
+        currWordParsingPos1 = currWordParsingPos;
+
+        ret = 0;
+    }
+    // exactly covering a header
+    if(currWordValidLen == MEMCACHED_HDRLEN && currMsgHeader.bodyLen > 0){
+        currSessionState.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, MEMCACHED_HDRLEN*8-currWordValidLen*8) = 
+            currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
+        currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+
+        currSessionState.parsingHeaderState = 1;
+        currSessionState.requiredLen = MEMCACHED_HDRLEN + currMsgHeader.bodyLen;
+        currSessionState.currHdrLen = MEMCACHED_HDRLEN;
+        currSessionState.currBodyLen = 0;
+        
+        ret = 1;
+        
+        currWordValidLen1 = currWordValidLen;
+        currWordParsingPos1 = currWordParsingPos;    
+    }
+    // exactly covering a header with body or more than a header. 
+    if((currWordValidLen == MEMCACHED_HDRLEN && currMsgHeader.bodyLen == 0) || currWordValidLen > MEMCACHED_HDRLEN){
+        currSessionState.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
+            currWord.data(currWordParsingPos-1, currWordParsingPos-MEMCACHED_HDRLEN*8);
+        currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+
+        if(currWordValidLen > MEMCACHED_HDRLEN){
+            currSessionState.parsingHeaderState = 1;
+            currSessionState.requiredLen = MEMCACHED_HDRLEN + currMsgHeader.bodyLen;
+            currSessionState.currHdrLen = MEMCACHED_HDRLEN;
+            currSessionState.currBodyLen = 0;
+            
+            currWordValidLen1 = currWordValidLen - MEMCACHED_HDRLEN;
+            currWordParsingPos1 = currWordParsingPos - MEMCACHED_HDRLEN*8;
+        }
+        else{
+            currWordValidLen1 = currWordValidLen;
+            currWordParsingPos1 = currWordParsingPos;
+        }
+
+        ret = 2;
+    }
+    
+}
+
+// consume currMsgHeader, currWord; 
+// update currSessionState, currMsgBody, currWordValidLen, currWordParsingPos;
+void parseMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, net_axis<DATA_WIDTH>& currWord, \
+    ap_uint<32>& currWordValidLen, ap_uint<32>& currWordParsingPos, ap_uint<32>& currWordValidLen1, ap_uint<32>& currWordParsingPos1, ap_uint<16>& currSessionID, \
+    hls::stream<ap_uint<16> >& sessionIdFifo, hls::stream<msgHeader>& msgHeaderFifo, hls::stream<msgBody>& msgBodyFifo, \
+    ap_uint<4>& ret
+){
 #pragma HLS INLINE
 
-    if(currWordValidLen > 0){
-        ap_uint<16> currWord_parsingPos = DATA_WIDTH - (currWordValidLen_init - currWordValidLen)*8;
-        if(currSessionState.parsingBodyState == 0){
-            ap_uint<32> currBodyLen = currSessionState.currBodyLen;
-            ap_uint<32> requiredBodyLen = currSessionState.requiredLen - MEMCACHED_HDRLEN - currBodyLen;
+    // require more word to parse body
+    if(currMsgHeader.bodyLen > 0 && currWordValidLen < currMsgHeader.bodyLen){
+        currMsgBody.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currWordValidLen*8) = 
+            currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
+        
+        currSessionState.parsingHeaderState = 1;
+        currSessionState.requiredLen = MEMCACHED_HDRLEN + currMsgHeader.bodyLen;
+        currSessionState.currHdrLen = MEMCACHED_HDRLEN;
+        currSessionState.currBodyLen = currWordValidLen;
+    
+        currWordValidLen1 = currWordValidLen;
+        currWordParsingPos1 = currWordParsingPos;
 
-            if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-            std::cout << "currWordValidLen=" << currWordValidLen << std::endl;
-            std::cout << "currBodyLen=" << currBodyLen << " requiredBodyLen=" << requiredBodyLen << std::endl;
-            
-            if(currWordValidLen >= requiredBodyLen){
-                currMsgBody.body(MAX_BODY_LEN-1-currBodyLen*8, MAX_BODY_LEN-currBodyLen*8-requiredBodyLen*8) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-requiredBodyLen*8);
-                currWordValidLen -= requiredBodyLen;
-                currSessionState.currBodyLen += requiredBodyLen;
-                currSessionState.parsingBodyState = 1; // body is parsed
-            }
-            else{
-                currMsgBody.body(MAX_BODY_LEN-1-currBodyLen*8, MAX_BODY_LEN-currBodyLen*8-currWordValidLen*8) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-currWordValidLen*8);
-                currSessionState.currBodyLen += currWordValidLen;
-                currWordValidLen = 0;
-            }
+        ret = 0;
+    }
+    // exactly parsing body done
+    if(currMsgHeader.bodyLen > 0 && currWordValidLen == currMsgHeader.bodyLen){
+        currMsgBody.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currWordValidLen*8) = 
+            currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
+        
+        currMsgBody.extInl = 1;
+        currMsgBody.keyInl = 1;
+        currMsgBody.valInl = 1;
+        
+        sessionIdFifo.write(currSessionID);
+        msgHeaderFifo.write(currMsgHeader);
+        msgBodyFifo.write(currMsgBody);
+
+        currSessionState.reset();
+
+        currWordValidLen1 = currWordValidLen;
+        currWordParsingPos1 = currWordParsingPos;
+
+        ret = 1;
+    }
+    // more than a body or no body
+    if((currMsgHeader.bodyLen > 0 && currWordValidLen > currMsgHeader.bodyLen) || currMsgHeader.bodyLen == 0){
+        if(currMsgHeader.bodyLen > 0){
+            currMsgBody.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader.bodyLen*8) = 
+                currWord.data(currWordParsingPos-1, currWordParsingPos-currMsgHeader.bodyLen*8);
+            currWordValidLen1 = currWordValidLen - currMsgHeader.bodyLen;
+            currWordParsingPos1 = currWordParsingPos - currMsgHeader.bodyLen*8;
         }
+        else{
+            currWordValidLen1 = currWordValidLen;
+            currWordParsingPos1 = currWordParsingPos;
+        }
+        currMsgBody.extInl = 1;
+        currMsgBody.keyInl = 1;
+        currMsgBody.valInl = 1;
+
+        sessionIdFifo.write(currSessionID);
+        msgHeaderFifo.write(currMsgHeader);
+        msgBodyFifo.write(currMsgBody);
+
+        currSessionState.reset();
+        ret = 2;   
     }
 }
 
@@ -281,8 +384,8 @@ void parser(
     static msgBody              currMsgBody; // storing body, restored from ht
     
 	static net_axis<DATA_WIDTH> currWord;
-    static ap_uint<16>          currWordValidLen_init; // the available length of currWord
-    static ap_uint<16>          currWordValidLen; // the current waiting-for-parsing length of currWord
+    static ap_uint<32>          currWordValidLen_init; // the available length of currWord
+    static ap_uint<32>          currWordValidLen; // the current waiting-for-parsing length of currWord
     
 #ifndef __SYNTHESIS__
     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
@@ -305,7 +408,7 @@ void parser(
                     currMsgBody.consume_word(response.value);
                 }
                 else{
-                    currMsgBody.reset(); // fresh new start for this sesion. 
+                    // currMsgBody.reset(); // fresh new start for this sesion. 
                     currMsgBody.msgID = currentMsgID;
                     currentMsgID += 1;
                 }
@@ -339,9 +442,11 @@ void parser(
             msgHeader            currMsgHeader;
             msgHeader            currMsgHeader1;
             msgHeader            currMsgHeader2;
+            msgHeader            currMsgHeader3;
 
             msgBody              currMsgBody1;
             msgBody              currMsgBody2;
+            msgBody              currMsgBody3;
 
             sessionState         currSessionState1;
             sessionState         currSessionState2;
@@ -386,9 +491,9 @@ void parser(
             ap_uint<32> currWordValidLen15 = currWordValidLen;
             ap_uint<32> currWordValidLen16 = currWordValidLen;
 
-
+            ap_uint<4> ret, ret1, ret2, ret3, ret4, ret5, ret6, ret7, ret8, ret9, ret10;
             ap_uint<32> msgParsingState = 0;
-            
+
             // !!! we do not need to care parsingBodyState
             // partial header
             if(!currSessionState.parsingHeaderState){
@@ -437,7 +542,240 @@ void parser(
                     currWordValidLen1 = currWordValidLen - (MEMCACHED_HDRLEN-currSessionState.currHdrLen);
                     currWordParsingPos1 = currWordParsingPos - (MEMCACHED_HDRLEN-currSessionState.currHdrLen)*8;
                     
+                    parseMsgBody(currSessionState, currMsgBody, currMsgHeader, currWord, currWordValidLen1, currWordParsingPos1, currWordValidLen2, currWordParsingPos2, currSessionID, sessionIdFifo, msgHeaderFifo, msgBodyFifo, ret);
+                    if(ret == 0) msgParsingState = 3;
+                    else if(ret == 1) msgParsingState = 4;
+                    else if(ret == 2){
+                        parseMsgHeader(currSessionState1, currMsgBody1, currMsgHeader1, currWord, currWordValidLen2, currWordParsingPos2, currWordValidLen3, currWordParsingPos3, currSessionID, sessionIdFifo1, msgHeaderFifo1, msgBodyFifo1, ret1);
+                        if(ret1 == 0) msgParsingState = 5;
+                        else if(ret1 == 1) msgParsingState = 6;
+                        else if(ret1 == 2){
+                            currMsgBody1.msgID = currentMsgID;
+                            currentMsgID += 1;
+                            parseMsgBody(currSessionState1, currMsgBody1, currMsgHeader1, currWord, currWordValidLen3, currWordParsingPos3, currWordValidLen4, currWordParsingPos4, currSessionID, sessionIdFifo1, msgHeaderFifo1, msgBodyFifo1, ret2);
+                            if(ret2 == 0) msgParsingState = 8;
+                            else if(ret2 == 1) msgParsingState = 9;
+                            else if(ret2 == 2){
+                                parseMsgHeader(currSessionState2, currMsgBody2, currMsgHeader2, currWord, currWordValidLen4, currWordParsingPos4, currWordValidLen5, currWordParsingPos5, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret3);
+                                if(ret3 == 0) msgParsingState = 10;
+                                else if(ret3 == 1) msgParsingState = 11;
+                                else if(ret3 == 2){
+                                    currMsgBody2.msgID = currentMsgID;
+                                    currentMsgID += 1;
+                                    parseMsgBody(currSessionState2, currMsgBody2, currMsgHeader2, currWord, currWordValidLen5, currWordParsingPos5, currWordValidLen6, currWordParsingPos6, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret4);
+                                    if(ret4 == 0) msgParsingState = 13;
+                                    else if(ret4 == 1) msgParsingState = 14;
+                                    else if(ret4 == 2) {
+                                        currMsgBody3.msgID = currentMsgID;
+                                        currentMsgID += 1;
+                                        // currMsgBody3, currMsgHeader3 will not be updated
+                                        parseMsgHeader(currSessionState3, currMsgBody3, currMsgHeader3, currWord, currWordValidLen6, currWordParsingPos6, currWordValidLen7, currWordParsingPos8, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret5);
+                                        if(ret5 != 0){
+                                            std::cout << "[ERROR]: parsing error" << std::endl;
+                                        }
+                                        msgParsingState = 15;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }// partial body
+            else{
+                currMsgHeader.consume_word(currSessionState.msgHeaderBuff);
+
+                // requiring more data to parse body
+                if(currWordValidLen < currMsgHeader.bodyLen - currSessionState.currBodyLen){
+                    currMsgBody.body(MAX_BODY_LEN-currSessionState.currBodyLen*8-1, MAX_BODY_LEN-currSessionState.currBodyLen*8-currWordValidLen*8) = 
+                        currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
                     
+                    currSessionState.currBodyLen += currWordValidLen;
+
+                    msgParsingState = 16;
+                }
+                // exactly parsed body done
+                else if(currWordValidLen == currMsgHeader.bodyLen - currSessionState.currBodyLen){
+                    currMsgBody.body(MAX_BODY_LEN-currSessionState.currBodyLen*8-1, MAX_BODY_LEN-currSessionState.currBodyLen*8-currWordValidLen*8) = 
+                        currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
+                    
+                    currMsgBody.extInl = 1;
+                    currMsgBody.keyInl = 1;
+                    currMsgBody.valInl = 1;
+                    
+                    sessionIdFifo.write(currSessionID);
+                    msgHeaderFifo.write(currMsgHeader);
+                    msgBodyFifo.write(currMsgBody);
+
+                    currSessionState.reset();
+                 
+                    msgParsingState = 17;
+                }
+                // there are word data remaining
+                else{
+                    currMsgBody.body(MAX_BODY_LEN-currSessionState.currBodyLen*8-1, MAX_BODY_LEN-currSessionState.currBodyLen*8-(currMsgHeader.bodyLen - currSessionState.currBodyLen)*8) = 
+                        currWord.data(currWordParsingPos-1, currWordParsingPos-(currMsgHeader.bodyLen - currSessionState.currBodyLen)*8);
+
+                    currMsgBody.extInl = 1;
+                    currMsgBody.keyInl = 1;
+                    currMsgBody.valInl = 1;
+                    
+                    sessionIdFifo.write(currSessionID);
+                    msgHeaderFifo.write(currMsgHeader);
+                    msgBodyFifo.write(currMsgBody);
+
+                    currWordValidLen1 = currWordValidLen - (currMsgHeader.bodyLen - currSessionState.currBodyLen);
+                    currWordParsingPos1 = currWordParsingPos - (currMsgHeader.bodyLen - currSessionState.currBodyLen)*8;
+
+                    currSessionState.reset();
+
+                    parseMsgHeader(currSessionState1, currMsgBody1, currMsgHeader1, currWord, currWordValidLen1, currWordParsingPos1, currWordValidLen2, currWordParsingPos2, currSessionID, sessionIdFifo1, msgHeaderFifo1, msgBodyFifo1, ret1);
+                    if(ret1 == 0) msgParsingState = 18;
+                    else if(ret1 == 1) msgParsingState = 19;
+                    else if(ret1 == 2){
+                        currMsgBody1.msgID = currentMsgID;
+                        currentMsgID += 1;
+                        parseMsgBody(currSessionState1, currMsgBody1, currMsgHeader1, currWord, currWordValidLen2, currWordParsingPos2, currWordValidLen3, currWordParsingPos3, currSessionID, sessionIdFifo1, msgHeaderFifo1, msgBodyFifo1, ret2);
+                        if(ret2 == 0) msgParsingState = 21;
+                        else if(ret2 == 1) msgParsingState = 22;
+                        else if(ret2 == 2){
+                            parseMsgHeader(currSessionState2, currMsgBody2, currMsgHeader2, currWord, currWordValidLen3, currWordParsingPos3, currWordValidLen4, currWordParsingPos4, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret3);
+                            if(ret3 == 0) msgParsingState = 23;
+                            else if(ret3 == 1) msgParsingState = 24;
+                            else if(ret3 == 2){
+                                currMsgBody2.msgID = currentMsgID;
+                                currentMsgID += 1;
+                                parseMsgBody(currSessionState2, currMsgBody2, currMsgHeader2, currWord, currWordValidLen4, currWordParsingPos4, currWordValidLen5, currWordParsingPos5, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret4);
+                                if(ret4 == 0) msgParsingState = 26;
+                                else if(ret4 == 1) msgParsingState = 27;
+                                else if(ret4 == 2) {
+                                    currMsgBody3.msgID = currentMsgID;
+                                    currentMsgID += 1;
+                                    parseMsgHeader(currSessionState3, currMsgBody3, currMsgHeader3, currWord, currWordValidLen5, currWordParsingPos5, currWordValidLen6, currWordParsingPos7, currSessionID, sessionIdFifo2, msgHeaderFifo2, msgBodyFifo2, ret5);
+                                    if(ret5 != 0){
+                                        std::cout << "[ERROR]: parsing error" << std::endl;
+                                    }
+                                    msgParsingState = 28;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            std::cout << "msgParsingState = " << msgParsingState << std::endl;
+            // decide which currSessionState to store back based on msgParsingState; 
+            // decide which currMsgBody to store back based on msgParsingState; 
+            // last and msg not parsed done -> KV_UPDATE_INSERT;
+            // msg parsed done -> KV_DELETE;
+            switch(msgParsingState){
+                case 0:
+                case 1:
+                case 3:
+                case 16:{
+                    // end of the AXIS transaction, need to store sessionState and currMsgBody back; 
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState;
+                    }
+                    if(currMsgBody.msgID != 0)std::cout << "KV_UPDATE_INSERT currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "currSessionState: " << std::endl; currSessionState.display();
+                    break;
+                }
+                case 2:
+                case 4:
+                case 17:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState;
+                    }
+                    if(currMsgBody.msgID != 0)std::cout << "KV_DELETE currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "currSessionState: " << std::endl; currSessionState.display();
+                    break;
+                }
+                case 5:
+                case 6:
+                case 8:
+                case 18:
+                case 19:
+                case 21:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody1.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState1;
+                    }
+                    else{
+                        currMsgBody = currMsgBody1;
+                        currSessionState = currSessionState1;
+                    }
+                    if(currMsgBody1.msgID != 0)std::cout << "KV_UPDATE_INSERT currMsgBody1.msgID = " << currMsgBody1.msgID << ": ";
+                    std::cout << "currSessionState1: " << std::endl; currSessionState1.display();
+                    break;
+                }
+                case 7:
+                case 9:
+                case 20:
+                case 22:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody1.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState1;
+                    }
+                    else{
+                        currMsgBody = currMsgBody1;
+                        currSessionState = currSessionState1;
+                    }
+                    if(currMsgBody1.msgID != 0)std::cout << "KV_DELETE currMsgBody1.msgID = " << currMsgBody1.msgID << ": ";
+                    std::cout << "currSessionState1: " << std::endl; currSessionState1.display();
+                    break;
+                }
+                case 10:
+                case 11:
+                case 13:
+                case 23:
+                case 24:
+                case 26:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody2.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState2;
+                    }
+                    else{
+                        currMsgBody = currMsgBody2;
+                        currSessionState = currSessionState2;
+                    }
+                    if(currMsgBody2.msgID != 0)std::cout << "KV_UPDATE_INSERT currMsgBody2.msgID = " << currMsgBody2.msgID << ": ";
+                    std::cout << "currSessionState2: " << std::endl; currSessionState2.display();
+                    break;
+                }
+                case 12:
+                case 14:
+                case 25:
+                case 27:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody2.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState2;
+                    }
+                    else{
+                        currMsgBody = currMsgBody2;
+                        currSessionState = currSessionState2;
+                    }
+                    if(currMsgBody2.msgID != 0)std::cout << "KV_DELETE currMsgBody2.msgID = " << currMsgBody2.msgID << ": ";
+                    std::cout << "currSessionState2: " << std::endl; currSessionState2.display();
+                    break;
+                }
+                case 15:
+                case 28:{
+                    if(currWord.last){
+                        s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody3.output_word(), 0));
+                        sessionStateTable[currSessionID] = currSessionState3;
+                    }
+                    else{
+                        currMsgBody = currMsgBody3;
+                        currSessionState = currSessionState3;
+                    }
+                    if(currMsgBody3.msgID != 0)std::cout << "KV_UPDATE_INSERT currMsgBody3.msgID = " << currMsgBody3.msgID << ": ";
+                    std::cout << "currSessionState3: " << std::endl; currSessionState3.display();
+                    break;
+                }
+            }
+
             if(currWord.last){
                 currAxisState = IDLE;
             }
@@ -466,13 +804,14 @@ void priorityMux3to1(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-	enum muxStateType{FWD0, FWD1, FWD2};
+	enum muxStateType{FWD0=0, FWD1, FWD2};
     static muxStateType fsmState = FWD0;
 
     ap_uint<1> fifo0_vld = (!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty());
     ap_uint<1> fifo1_vld = (!sessionIdFifo1.empty() && !msgHeaderFifo1.empty() && !msgBodyFifo1.empty());
     ap_uint<1> fifo2_vld = (!sessionIdFifo2.empty() && !msgHeaderFifo2.empty() && !msgBodyFifo2.empty());
 
+    std::cout << "priorityMux3to1 state: " << fsmState << std::endl;
     switch(fsmState) {
         case FWD0: {
             if(fifo0_vld){
@@ -495,7 +834,7 @@ void priorityMux3to1(
                 fsmState = FWD2;
             }
             else{
-                fsmState = FWD1;
+                fsmState = FWD0;
             }
             break;
         }
