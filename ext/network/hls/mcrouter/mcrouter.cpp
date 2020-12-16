@@ -2260,22 +2260,24 @@ void deparser(
     hls::stream<net_axis<DATA_WIDTH> >& txData
 ){
 #pragma HLS PIPELINE II=1
-#pragma HLS INLINE off
+#pragma HLS INLINE off enable_flush
 
     static ap_uint<32> requiredSendLen;
     static ap_uint<32> currSendLen;
     static ap_uint<MEMCACHED_HDRLEN*8> hdr;
-    #pragma HLS DEPENDENCE variable=hdr inter false
     static ap_uint<MAX_BODY_LEN> body;
-    #pragma HLS DEPENDENCE variable=body inter false
-
+    
     static ap_uint<16> currSessionID;
     static msgHeader currMsgHeader;
     static msgBody currMsgBody;
 
-    enum deparser_fsmType{IDLE=0, SEND_HDR, SEND_OTHERS};
+    // !!! if you specify it in a switch case, that forces that switch case to be scheduled in one cycle??
+    static net_axis<DATA_WIDTH> currWord;
+    #pragma HLS DEPENDENCE variable=currWord inter false
+
+    enum deparser_fsmType{IDLE=0, SEND_WORD};
 #ifndef __SYNTHESIS__
-    const char* deparser_fsmName[3] = {"IDLE", "SEND_HDR", "SEND_OTHERS"};
+    const char* deparser_fsmName[2] = {"IDLE", "SEND_WORD"};
 #endif
     static deparser_fsmType esac_fsmState = IDLE;
 
@@ -2288,8 +2290,8 @@ void deparser(
     		if (!txMetaData.full() && !sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
     		{
                 currSessionID = sessionIdFifo.read();
-                currMsgHeader = msgHeaderFifo.read();
-                currMsgBody = msgBodyFifo.read();
+                currMsgHeader = msgHeaderFifo.read();;
+                currMsgBody = msgBodyFifo.read();;
 
                 requiredSendLen = MEMCACHED_HDRLEN*8 + currMsgHeader.bodyLen*8;
                 currSendLen = 0;
@@ -2304,63 +2306,52 @@ void deparser(
                 body = currMsgBody.body;
 
                 txMetaData.write(appTxMeta(currSessionID, requiredSendLen));
-    			esac_fsmState = SEND_HDR;
+    			esac_fsmState = SEND_WORD;
     		}
     		break;
         }
         // TODO: need to check txStatus. 
-        case SEND_HDR: {
+        case SEND_WORD: {
     		if (!txData.full())
     		{
-    	        net_axis<DATA_WIDTH> currWord;
-                if(DATA_WIDTH >= requiredSendLen){
-                    ap_uint<32> secondPartLen = requiredSendLen - MEMCACHED_HDRLEN*8;
-                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                    std::cout << "secondPartLen " << secondPartLen << std::endl;
-                    std::cout << "requiredSendLen " << requiredSendLen << std::endl;
-                    
-                    if(secondPartLen == 0){
-                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = hdr(MEMCACHED_HDRLEN*8-1, 0);
+                if(currSendLen < MEMCACHED_HDRLEN*8){
+                    if(DATA_WIDTH >= requiredSendLen){
+                        ap_uint<32> secondPartLen = requiredSendLen - MEMCACHED_HDRLEN*8;
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "secondPartLen " << secondPartLen << std::endl;
+                        std::cout << "requiredSendLen " << requiredSendLen << std::endl;
+                        
+                        currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
+                        if(secondPartLen > 0){
+                            // this is not supported in HLS -- causing currWord.data to be all zero, not sure why
+                            // currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr(MEMCACHED_HDRLEN*8-1, 0), body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                            // currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
+                            currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, DATA_WIDTH-requiredSendLen) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
+                        }
+                        
+                        currWord.keep = lenToKeep(requiredSendLen/8);
+                        currWord.last = 1;
+
+                        currSendLen += requiredSendLen;
+                        
+                        esac_fsmState = IDLE;
                     }
                     else{
-                        // this is not supported in HLS -- causing currWord.data to be all zero, not sure why
-                        // currWord.data(DATA_WIDTH-1, DATA_WIDTH-requiredSendLen) = (hdr(MEMCACHED_HDRLEN*8-1, 0), body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
+                        ap_uint<32> secondPartLen = DATA_WIDTH - MEMCACHED_HDRLEN*8;
+                        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                        std::cout << "secondPartLen " << secondPartLen << std::endl;
+                        
+                        // currWord.data = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
                         currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
-                        // currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, DATA_WIDTH-requiredSendLen) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
-                        currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, DATA_WIDTH-MEMCACHED_HDRLEN*8-secondPartLen) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
-                    }
-                    
-                    currWord.keep = lenToKeep(requiredSendLen/8);
-                    currWord.last = 1;
-            		txData.write(currWord);
+                        currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, 0) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
+                        currWord.keep = lenToKeep(DATA_WIDTH/8);
+                        currWord.last = 0;
 
-                    currSendLen += requiredSendLen;
-                    
-                    esac_fsmState = IDLE;
+                        currSendLen += DATA_WIDTH;
+        				esac_fsmState = SEND_WORD;
+                    }
                 }
                 else{
-                    ap_uint<32> secondPartLen = DATA_WIDTH - MEMCACHED_HDRLEN*8;
-                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                    std::cout << "secondPartLen " << secondPartLen << std::endl;
-                    
-                    // currWord.data = (hdr, body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen));
-                    currWord.data(DATA_WIDTH-1, DATA_WIDTH-MEMCACHED_HDRLEN*8) = hdr;
-                    currWord.data(DATA_WIDTH-MEMCACHED_HDRLEN*8-1, 0) = body(MAX_BODY_LEN-1, MAX_BODY_LEN-secondPartLen);
-                    currWord.keep = lenToKeep(DATA_WIDTH/8);
-                    currWord.last = 0;
-                    txData.write(currWord);
-
-                    currSendLen += DATA_WIDTH;
-    				esac_fsmState = SEND_OTHERS;
-                }
-    		}
-    		break;
-    	}
-        case SEND_OTHERS: {
-            if (!txData.full())
-    		{
-    	        net_axis<DATA_WIDTH> currWord;
-                if(currSendLen < requiredSendLen){
                     ap_uint<16> remainLen = requiredSendLen - currSendLen;
                     ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
                     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
@@ -2370,7 +2361,6 @@ void deparser(
                         currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = body(body_sendingPos-1, body_sendingPos-remainLen);
                         currWord.keep = lenToKeep(remainLen/8);
                         currWord.last = 1;
-                        txData.write(currWord);
         
                         currSendLen += remainLen;
                         esac_fsmState = IDLE;
@@ -2379,19 +2369,22 @@ void deparser(
                         currWord.data = body(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
                         currWord.keep = lenToKeep(DATA_WIDTH/8);
                         currWord.last = 0;
-                        txData.write(currWord);
         
                         currSendLen += DATA_WIDTH;
-                        esac_fsmState = SEND_OTHERS;
+                        esac_fsmState = SEND_WORD;
                     }
                 }
-                else{
-                    esac_fsmState = IDLE;
-                }
-            }
-            break;
-        }
+                txData.write(currWord);
+    		}
+    		break;
+    	}
     }
+}
+
+void deparser_send(
+    
+){
+
 }
 
 void dummy(	
