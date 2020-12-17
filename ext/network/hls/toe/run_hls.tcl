@@ -28,7 +28,7 @@ add_files -tb toe_tb.cpp
 open_solution "solution1"
 #set_part {xc7vx690tffg1761-2}
 set_part {xcu250-figd2104-2L-e}
-create_clock -period 3.2 -name default
+create_clock -period 3.1 -name default
 
 config_rtl  -disable_start_propagation
 csynth_design

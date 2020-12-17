@@ -60,7 +60,7 @@ if (NETWORK_BANDWIDTH STREQUAL "100")
       set(NETWORK_INTERFACE 100)
    endif()
    if (NOT DEFINED CLOCK_PERIOD)
-      set(CLOCK_PERIOD 3.2)
+      set(CLOCK_PERIOD 3.1)
    endif()
 endif()
 

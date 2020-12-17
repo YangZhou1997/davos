@@ -4,7 +4,7 @@ export IPREPO_DIR=/home/yangz/davos/iprepo
 
 cd build
 # rm CMakeCache.txt
-# cmake .. -DDATA_WIDTH=64 -DCLOCK_PERIOD=3.2 \
+# cmake .. -DDATA_WIDTH=64 -DCLOCK_PERIOD=3.1 \
 #     -DFPGA_PART=xcu250-figd2104-2L-e \
 #     -DFPGA_FAMILY=ultraplus -DDEVICE_NAME=vcu118 \
 #     -DTCP_STACK_EN=1 \
