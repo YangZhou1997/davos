@@ -2377,7 +2377,9 @@ void deparser_send(
                 std::cout << "remainLen = " << remainLen << std::endl;
 
                 if(DATA_WIDTH >= remainLen){
-                    currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = sendBuf(body_sendingPos-1, body_sendingPos-remainLen);
+                    // currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = sendBuf(body_sendingPos-1, body_sendingPos-remainLen);
+                    // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
+                    currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
                     currWord.keep = lenToKeep(remainLen/8);
                     currWord.last = 1;
     
@@ -2385,10 +2387,11 @@ void deparser_send(
                     fsmState = IDLE;
                 }
                 else{
-                    currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
+                    // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
+                    currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
                     currWord.keep = lenToKeep(DATA_WIDTH/8);
                     currWord.last = 0;
-    
+                    sendBuf <<= DATA_WIDTH;
                     currSendLen += DATA_WIDTH;
                     fsmState = SEND_WORD;
                 }
