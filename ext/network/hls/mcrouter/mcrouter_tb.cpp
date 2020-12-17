@@ -750,28 +750,46 @@ void txMetaMux(
     uint16_t clientSessionID, uint16_t memcachedSessionID
 ){
     static ap_uint<4> muxState = 0;
+    static appTxMeta txMeta;
     switch(muxState){
         case 0: {
             if(!txMetaData.empty()){
-                appTxMeta txMeta = txMetaData.read();
+                txMeta = txMetaData.read();
                 // client receives final response from mcrouter. 
                 if(txMeta.sessionID == clientSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "client prepares receiving data: " << dec << length << endl;
-                    txStatus.write(appTxRsp(clientSessionID, length, 64<<10, 0));
-                    muxState = 1;
+                    muxState = 5;
                 }
                 // memcached waiting to receive request from mcrouter. 
                 else if(txMeta.sessionID == memcachedSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "memcached prepares receiving data: " << dec << length << endl;
-                    txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
-                    muxState = 2;
+                    muxState = 6;
                 }
                 else{
                     cout << "txMetaData unknown sessionID: " << txMeta.sessionID << endl;
                 }
             }
+            break;
+        }
+        // !!! we need some delay; as mcrouter-side txMetaData.write() is in the second cycle. 
+        case 5: {
+            muxState = 3;
+            break;
+        }
+        case 6: {
+            muxState = 4;
+            break;
+        }
+        case 3:{
+            uint32_t length = txMeta.length;
+            cout << "client prepares receiving data: " << dec << length << endl;
+            txStatus.write(appTxRsp(clientSessionID, length, 64<<10, 0));
+            muxState = 1;
+            break;
+        }
+        case 4:{
+            uint32_t length = txMeta.length;
+            cout << "memcached prepares receiving data: " << dec << length << endl;
+            txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
+            muxState = 2;
             break;
         }
         case 1: {

@@ -2240,10 +2240,9 @@ void deparser(
     hls::stream<ap_uint<16> >& sessionIdFifo, // input
     hls::stream<msgHeader>& msgHeaderFifo, // input
     hls::stream<msgBody>& msgBodyFifo, // input
-    hls::stream<ap_uint<MEMCACHED_HDRLEN*8+MAX_BODY_LEN> >& sendBufFifo,  // ouput
-    hls::stream<ap_uint<32> >& lengthFifo, // ouput
-    hls::stream<ap_uint<32> >& msgIDFifo, //output
-    hls::stream<ap_uint<16> >& sessionIdFifo2 // input
+    hls::stream<appTxMeta>& txMetaData, // ouput
+	hls::stream<appTxRsp>& txStatus, // ouput
+    hls::stream<net_axis<DATA_WIDTH> >& txData // ouput
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
@@ -2256,17 +2255,17 @@ void deparser(
     static msgHeader currMsgHeader;
     static msgBody currMsgBody;
 
-    enum deparser_fsmType{IDLE=0};
+    enum deparser_fsmType{IDLE=0, WAIT_TX_META, WAIT_TX_STATUS, SEND_WORD};
 #ifndef __SYNTHESIS__
-    const char* deparser_fsmName[1] = {"IDLE"};
+    const char* deparser_fsmName[4] = {"IDLE", "WAIT_TX_META", "WAIT_TX_STATUS", "SEND_WORD"};
 #endif
-    static deparser_fsmType esac_fsmState = IDLE;
+    static deparser_fsmType fsmState = IDLE;
 
 #ifndef __SYNTHESIS__
     if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-    std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)esac_fsmState] << std::endl;
+    std::cout << "mcrouter::deparser fsmState " << deparser_fsmName[(int)fsmState] << std::endl;
 #endif
-	switch (esac_fsmState){
+	switch (fsmState){
     	case IDLE:{
     		if (!sessionIdFifo.empty() && !msgHeaderFifo.empty() && !msgBodyFifo.empty())
     		{
@@ -2286,56 +2285,18 @@ void deparser(
                 sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN) = currMsgHeader.output_word();
                 sendBuf(MAX_BODY_LEN -1, 0) = currMsgBody.body;
 
-                sendBufFifo.write(sendBuf);
-                lengthFifo.write(requiredSendLen);
-                msgIDFifo.write(currMsgBody.msgID);
-                sessionIdFifo2.write(currSessionID);
-
-    			esac_fsmState = IDLE;
+                fsmState = WAIT_TX_META;       
     		}
     		break;
         }
-    }
-}
-
-void deparser_send(
-    hls::stream<ap_uint<MEMCACHED_HDRLEN*8+MAX_BODY_LEN> >& sendBufFifo, 
-    hls::stream<ap_uint<32> >& lengthFifo,
-    hls::stream<ap_uint<32> >& msgIDFifo,
-    hls::stream<ap_uint<16> >& sessionIdFifo, // input
-    hls::stream<appTxMeta>& txMetaData, // ouput
-	hls::stream<appTxRsp>& txStatus,
-    hls::stream<net_axis<DATA_WIDTH> >& txData
-){
-#pragma HLS PIPELINE II=1
-#pragma HLS INLINE off
-    static ap_uint<32> requiredSendLen;
-    static ap_uint<32> currMsgID;
-    static ap_uint<MEMCACHED_HDRLEN*8+MAX_BODY_LEN> sendBuf; // 1024
-    static ap_uint<16> currSessionID;
-    static ap_uint<32> currSendLen;
-    #pragma HLS DEPENDENCE variable=currSendLen inter false
-    
-    enum send_fsmType{IDLE=0, WAIT_TX_STATUS, SEND_WORD};
-    static send_fsmType fsmState = IDLE;
-
-
-    switch(fsmState){
-        case IDLE:{
-            if(!sendBufFifo.empty() && !lengthFifo.empty() && !msgIDFifo.empty() && !sessionIdFifo.empty()){
-                sendBuf = sendBufFifo.read();
-                requiredSendLen = lengthFifo.read();
-                currMsgID = msgIDFifo.read();
-                currSessionID = sessionIdFifo.read();
-
-                std::cout << "deparser_send: preparing to send" << std::endl;
-                if(!txMetaData.full()){
-                    txMetaData.write(appTxMeta(currSessionID, requiredSendLen));
-                    currSendLen = 0;
-                    fsmState = SEND_WORD;
-                }
-            }
+        case WAIT_TX_META: {
+            // if(!txMetaData.full()){ 
+            // !!! for AXIS interface, we do not need to check whether it is full(), but we do need to check whether it is empty() (ie, valid); 
+            std::cout << "deparser_send: preparing to send" << std::endl;
+            txMetaData.write(appTxMeta(currSessionID, requiredSendLen));
+            fsmState = WAIT_TX_STATUS;
             break;
+            // }
         }
         // !!! txMetaData.write() must follow txStatus.read() immediately, as they are AXIS interface not FIFO -- data will be overwritten. 
         case WAIT_TX_STATUS: {
@@ -2347,7 +2308,7 @@ void deparser_send(
                 if(txRsp.remaining_space >= requiredSendLen){
                     fsmState = SEND_WORD;
                 }
-            } 
+            }
             break;
         }
         case SEND_WORD:{
@@ -2357,7 +2318,7 @@ void deparser_send(
                 
                 ap_uint<16> remainLen = requiredSendLen - currSendLen;
                 ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
-                if(currMsgID != 0)std::cout << "currMsgID = " << currMsgID << ": ";
+                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "remainLen = " << remainLen << std::endl;
 
                 if(DATA_WIDTH >= remainLen){
@@ -2623,9 +2584,7 @@ void mcrouter(
             mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3);
 
     // deparsing the res and resp, sending to destination (client or memcached)
-    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, mc_sendBufFifo, mc_lengthFifo, mc_msgIDFifo, mc_sessionIdFifo8);
-
-    deparser_send(mc_sendBufFifo, mc_lengthFifo, mc_msgIDFifo, mc_sessionIdFifo8, txMetaData, txStatus, txData);
+    deparser(mc_sessionIdFifo1, mc_msgHeaderFifo1, mc_msgBodyFifo1, txMetaData, txStatus, txData);
 
 	dummy(closeConnection, m_axis_upd_rsp, regInsertFailureCount, regInsertFailureCount1);
 
