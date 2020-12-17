@@ -505,7 +505,6 @@ void parser(
                 if(currWordValidLen < MEMCACHED_HDRLEN - currSessionState.currHdrLen){
                     currSessionState.msgHeaderBuff(MEMCACHED_HDRLEN*8-currSessionState.currHdrLen*8-1, MEMCACHED_HDRLEN*8-currSessionState.currHdrLen*8-currWordValidLen*8) = 
                         currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
-                    
                     currSessionState.currHdrLen += currWordValidLen;
 
                     msgParsingState = 0;
@@ -564,7 +563,7 @@ void parser(
                         else if(currWordValidLen1 == currMsgHeader.bodyLen){
                             currMsgBody.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currWordValidLen1*8) = 
                                 currWord.data(currWordParsingPos1-1, currWordParsingPos1-currWordValidLen1*8);
-                            
+
                             currMsgBody.extInl = 1;
                             currMsgBody.keyInl = 1;
                             currMsgBody.valInl = 1;
@@ -667,10 +666,10 @@ void parser(
                                         msgParsingState = 9;
                                     }
                                     // more than a body or no body
-                                    // else if((currMsgHeader1.bodyLen > 0 && currWordValidLen3 > currMsgHeader1.bodyLen) || currMsgHeader1.bodyLen == 0){
                                     else{
                                         currMsgBody1.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader1.bodyLen*8) = 
                                             currWord.data(currWordParsingPos3-1, currWordParsingPos3-currMsgHeader1.bodyLen*8);
+
                                         currWordValidLen4 = currWordValidLen3 - currMsgHeader1.bodyLen;
                                         currWordParsingPos4 = currWordParsingPos3 - currMsgHeader1.bodyLen*8;
                                         
@@ -758,6 +757,7 @@ void parser(
                                                 else{
                                                     currMsgBody2.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader2.bodyLen*8) = 
                                                         currWord.data(currWordParsingPos5-1, currWordParsingPos5-currMsgHeader2.bodyLen*8);
+
                                                     currWordValidLen6 = currWordValidLen5 - currMsgHeader2.bodyLen;
                                                     currWordParsingPos6 = currWordParsingPos5 - currMsgHeader2.bodyLen*8;
                                                     
@@ -862,6 +862,7 @@ void parser(
                                     else{
                                         currSessionState2.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
                                             currWord.data(currWordParsingPos4-1, currWordParsingPos4-MEMCACHED_HDRLEN*8);
+
                                         currMsgHeader2.consume_word(currSessionState2.msgHeaderBuff);
                                         currWordValidLen5 = currWordValidLen4 - MEMCACHED_HDRLEN;
                                         currWordParsingPos5 = currWordParsingPos4 - MEMCACHED_HDRLEN*8;
@@ -1014,22 +1015,11 @@ void parser(
                         else{
                             currSessionState1.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
                                 currWord.data(currWordParsingPos2-1, currWordParsingPos2-MEMCACHED_HDRLEN*8);
+
                             currMsgHeader1.consume_word(currSessionState1.msgHeaderBuff);
-
-                            if(currWordValidLen2 > MEMCACHED_HDRLEN){
-                                currSessionState1.parsingHeaderState = 1;
-                                currSessionState1.requiredLen = MEMCACHED_HDRLEN + currMsgHeader1.bodyLen;
-                                currSessionState1.currHdrLen = MEMCACHED_HDRLEN;
-                                currSessionState1.currBodyLen = 0;
-                                
-                                currWordValidLen3 = currWordValidLen2 - MEMCACHED_HDRLEN;
-                                currWordParsingPos3 = currWordParsingPos2 - MEMCACHED_HDRLEN*8;
-                            }
-                            else{
-                                currWordValidLen3 = currWordValidLen2;
-                                currWordParsingPos3 = currWordParsingPos2;
-                            }
-
+                            currWordValidLen3 = currWordValidLen2 - MEMCACHED_HDRLEN;
+                            currWordParsingPos3 = currWordParsingPos2 - MEMCACHED_HDRLEN*8;
+                        
                             if(currMsgHeader1.bodyLen > 0){
                                 currMsgBody1.msgID = currentMsgID;
                                 currentMsgID += 1;
@@ -1066,6 +1056,7 @@ void parser(
                                 else{
                                     currMsgBody1.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader1.bodyLen*8) = 
                                         currWord.data(currWordParsingPos3-1, currWordParsingPos3-currMsgHeader1.bodyLen*8);
+                                    
                                     currWordValidLen4 = currWordValidLen3 - currMsgHeader1.bodyLen;
                                     currWordParsingPos4 = currWordParsingPos3 - currMsgHeader1.bodyLen*8;
                                     
@@ -1322,7 +1313,6 @@ void parser(
                                             if(currWordValidLen6 < MEMCACHED_HDRLEN){
                                                 currSessionState3.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, MEMCACHED_HDRLEN*8-currWordValidLen6*8) = 
                                                     currWord.data(currWordParsingPos6-1, currWordParsingPos6-currWordValidLen6*8);
-                                                
                                                 currSessionState3.parsingHeaderState = 0;
                                                 currSessionState3.currHdrLen = currWordValidLen6;
                                                 currSessionState3.currBodyLen = 0;
@@ -1387,7 +1377,7 @@ void parser(
                 else if(currWordValidLen == currMsgHeader.bodyLen - currSessionState.currBodyLen){
                     currMsgBody.body(MAX_BODY_LEN-currSessionState.currBodyLen*8-1, MAX_BODY_LEN-currSessionState.currBodyLen*8-currWordValidLen*8) = 
                         currWord.data(currWordParsingPos-1, currWordParsingPos-currWordValidLen*8);
-                    
+
                     currMsgBody.extInl = 1;
                     currMsgBody.keyInl = 1;
                     currMsgBody.valInl = 1;
@@ -1452,21 +1442,11 @@ void parser(
                     else{
                         currSessionState1.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
                             currWord.data(currWordParsingPos2-1, currWordParsingPos2-MEMCACHED_HDRLEN*8);
+
                         currMsgHeader1.consume_word(currSessionState1.msgHeaderBuff);
 
-                        if(currWordValidLen2 > MEMCACHED_HDRLEN){
-                            currSessionState1.parsingHeaderState = 1;
-                            currSessionState1.requiredLen = MEMCACHED_HDRLEN + currMsgHeader1.bodyLen;
-                            currSessionState1.currHdrLen = MEMCACHED_HDRLEN;
-                            currSessionState1.currBodyLen = 0;
-                            
-                            currWordValidLen3 = currWordValidLen2 - MEMCACHED_HDRLEN;
-                            currWordParsingPos3 = currWordParsingPos2 - MEMCACHED_HDRLEN*8;
-                        }
-                        else{
-                            currWordValidLen3 = currWordValidLen2;
-                            currWordParsingPos3 = currWordParsingPos2;
-                        }
+                        currWordValidLen3 = currWordValidLen2 - MEMCACHED_HDRLEN;
+                        currWordParsingPos3 = currWordParsingPos2 - MEMCACHED_HDRLEN*8;
 
                         if(currMsgHeader1.bodyLen > 0){
                             currMsgBody1.msgID = currentMsgID;
@@ -1504,6 +1484,7 @@ void parser(
                             else{
                                 currMsgBody1.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader1.bodyLen*8) = 
                                     currWord.data(currWordParsingPos3-1, currWordParsingPos3-currMsgHeader1.bodyLen*8);
+
                                 currWordValidLen4 = currWordValidLen3 - currMsgHeader1.bodyLen;
                                 currWordParsingPos4 = currWordParsingPos3 - currMsgHeader1.bodyLen*8;
                                 
@@ -1549,6 +1530,7 @@ void parser(
                                 else{
                                     currSessionState2.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
                                         currWord.data(currWordParsingPos4-1, currWordParsingPos4-MEMCACHED_HDRLEN*8);
+
                                     currMsgHeader2.consume_word(currSessionState2.msgHeaderBuff);
 
                                     currWordValidLen5 = currWordValidLen4 - MEMCACHED_HDRLEN;
@@ -1590,6 +1572,7 @@ void parser(
                                         else{
                                             currMsgBody2.body(MAX_BODY_LEN-1, MAX_BODY_LEN-currMsgHeader2.bodyLen*8) = 
                                                 currWord.data(currWordParsingPos5-1, currWordParsingPos5-currMsgHeader2.bodyLen*8);
+
                                             currWordValidLen6 = currWordValidLen5 - currMsgHeader2.bodyLen;
                                             currWordParsingPos6 = currWordParsingPos5 - currMsgHeader2.bodyLen*8;
                                             
@@ -1700,6 +1683,7 @@ void parser(
                             else{
                                 currSessionState2.msgHeaderBuff(MEMCACHED_HDRLEN*8-1, 0) = 
                                     currWord.data(currWordParsingPos4-1, currWordParsingPos4-MEMCACHED_HDRLEN*8);
+
                                 currMsgHeader2.consume_word(currSessionState2.msgHeaderBuff);
                                 currWordValidLen5 = currWordValidLen4 - MEMCACHED_HDRLEN;
                                 currWordParsingPos5 = currWordParsingPos4 - MEMCACHED_HDRLEN*8;
