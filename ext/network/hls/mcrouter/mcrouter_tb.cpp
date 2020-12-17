@@ -282,9 +282,7 @@ void client(
     stream<appReadRequest>& readRequest, 
     stream<ap_uint<16> >& rxMetaData,
     stream<net_axis<DATA_WIDTH> >& rxData,
-    stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus, 
     uint16_t clientSessionID
 ){
     static ap_uint<4> clientState = 0;
@@ -331,16 +329,9 @@ void client(
                     rxData.write(rxWords[i]);
                 }
             }
-            // client receives final response from mcrouter. 
-            else if(!txMetaData.empty()){
-                appTxMeta txMeta = txMetaData.read();
-                if(txMeta.sessionID == clientSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "client prepares receiving data: len=" << dec << length << endl;
-                    txStatus.write(appTxRsp(clientSessionID, length, 64<<10, 0));
-                    txWords.clear();
-                    clientState = 2;
-                }
+            else{
+                txWords.clear();
+                clientState = 2;
             }
             break;
         }
@@ -360,12 +351,15 @@ void client(
                     
                     cout << "client receives data: len=" << dec << len << endl;
                     displayMsg(data, len, true, opaque);
-                    // clientState = 1;
+
                     clientState = 0; // initiating a new key-value request. 
                     delete data;
-                    break;
                 }
             }
+            else{
+                clientState = 1;
+            }
+            break;
         }
     }    
 }
@@ -375,9 +369,7 @@ void memcached(
     stream<appReadRequest>& readRequest, 
     stream<ap_uint<16> >& rxMetaData,
     stream<net_axis<DATA_WIDTH> >& rxData,
-    stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus,
     uint16_t memcachedSessionID
 ){
     static ap_uint<4> mcState = 0;
@@ -393,21 +385,14 @@ void memcached(
                 appReadRequest appReq = readRequest.read();
                 cout << "memcached sends data: session " << dec << appReq.sessionID << ", length" << appReq.length << endl;
                 rxMetaData.write(memcachedSessionID);
-
+                
                 for(int i = 0; i < rxWords.size(); i++){
                     rxData.write(rxWords[i]);
                 }
             }
-            // memcached waiting to receive request from mcrouter. 
-            else if(!txMetaData.empty()){
-                appTxMeta txMeta = txMetaData.read();
-                if(txMeta.sessionID == memcachedSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "memcached prepares receiving data: " << dec << length << endl;
-                    txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
-                    txWords.clear();
-                    mcState = 1;
-                }
+            else{
+                txWords.clear();
+                mcState = 1;
             }
             break;
         }
@@ -430,7 +415,7 @@ void memcached(
                     displayMsg(data, len, true, opaque);
                     
                     delete data;
-
+                    
                     // generating response; 
                     protocol_binary_response_header rsp;
                     rsp.response = {
@@ -470,10 +455,13 @@ void memcached(
                         appNotification notific(memcachedSessionID, 24, 0, 0, false);
                         notifications.write(notific);
                     }
-                    
                     delete buf;
+                    
                     mcState = 0;
                 }
+            }
+            else{
+                mcState = 0;
             }
             break;
         }
@@ -485,9 +473,7 @@ void client2(
     stream<appReadRequest>& readRequest, 
     stream<ap_uint<16> >& rxMetaData,
     stream<net_axis<DATA_WIDTH> >& rxData,
-    stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus,
     uint16_t clientSessionID
 ){
     static ap_uint<4> clientState = 0;    
@@ -584,15 +570,8 @@ void client2(
                 }
             }
             // client receives final response from mcrouter. 
-            else if(!txMetaData.empty()){
-                appTxMeta txMeta = txMetaData.read();
-                if(txMeta.sessionID == clientSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "client prepares receivomg data: len=" << dec << length << endl;
-                    txStatus.write(appTxRsp(clientSessionID, length, 64<<10, 0));
-                    words.clear();
-                    clientState = 2;
-                }
+            else{
+                clientState = 2;
             }
             break;
         }
@@ -612,12 +591,15 @@ void client2(
                     
                     cout << "client receives data: len=" << dec << len << endl;
                     displayMsg(data, len, true, opaque);
-                    // clientState = 1;
+
                     clientState = 0; // initiating a new key-value request. 
                     delete data;
-                    break;
                 }
             }
+            else{
+                clientState = 1;
+            }
+            break;
         }
     }    
 }
@@ -627,9 +609,7 @@ void memcached2(
     stream<appReadRequest>& readRequest, 
     stream<ap_uint<16> >& rxMetaData,
     stream<net_axis<DATA_WIDTH> >& rxData,
-    stream<appTxMeta>& txMetaData,
     stream<net_axis<DATA_WIDTH> >& txData,
-    stream<appTxRsp>& txStatus,
     uint16_t memcachedSessionID
 ){
     static ap_uint<4> mcState = 0;
@@ -638,19 +618,8 @@ void memcached2(
     
     switch(mcState){
         case 0: {
-            // memcached waiting to receive request from mcrouter. 
-            if(!txMetaData.empty()){
-                appTxMeta txMeta = txMetaData.read();
-                if(txMeta.sessionID == memcachedSessionID){
-                    uint32_t length = txMeta.length;
-                    cout << "memcached prepares receiving data: " << dec << length << endl;
-                    txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
-                    words.clear();
-                    mcState = 1;
-                }
-            }
             // memcached sends response to mcrouter
-            else if(!readRequest.empty()){
+            if(!readRequest.empty()){
                 appReadRequest appReq = readRequest.read();
                 cout << "memcached sends data: session " << dec << appReq.sessionID << ", length" << appReq.length << endl;
 
@@ -703,6 +672,9 @@ void memcached2(
                     rxData.write(words[i]);
                 }
             }
+            else{
+                mcState = 1;
+            }
             break;
         }
         case 1: {
@@ -730,6 +702,9 @@ void memcached2(
                     
                     mcState = 0;
                 }
+            }
+            else{
+                mcState = 0;
             }
             break;
         }
@@ -768,9 +743,10 @@ void appReqMux(
 
 void txMetaMux(
     stream<appTxMeta>& txMetaData, 
-    stream<appTxMeta>& txMetaData1, stream<appTxMeta>& txMetaData2, 
+    // stream<appTxMeta>& txMetaData1, stream<appTxMeta>& txMetaData2, 
     stream<net_axis<DATA_WIDTH> >& txData, 
     stream<net_axis<DATA_WIDTH> >& txData1, stream<net_axis<DATA_WIDTH> >& txData2, 
+    stream<appTxRsp>& txStatus,
     uint16_t clientSessionID, uint16_t memcachedSessionID
 ){
     static ap_uint<4> muxState = 0;
@@ -778,12 +754,18 @@ void txMetaMux(
         case 0: {
             if(!txMetaData.empty()){
                 appTxMeta txMeta = txMetaData.read();
+                // client receives final response from mcrouter. 
                 if(txMeta.sessionID == clientSessionID){
-                    txMetaData1.write(txMeta);
+                    uint32_t length = txMeta.length;
+                    cout << "client prepares receiving data: " << dec << length << endl;
+                    txStatus.write(appTxRsp(clientSessionID, length, 64<<10, 0));
                     muxState = 1;
                 }
+                // memcached waiting to receive request from mcrouter. 
                 else if(txMeta.sessionID == memcachedSessionID){
-                    txMetaData2.write(txMeta);
+                    uint32_t length = txMeta.length;
+                    cout << "memcached prepares receiving data: " << dec << length << endl;
+                    txStatus.write(appTxRsp(memcachedSessionID, length, 64<<10, 0));
                     muxState = 2;
                 }
                 else{
@@ -836,17 +818,13 @@ int main()
 	stream<appReadRequest> readRequest1;
 	stream<ap_uint<16> > rxMetaData1;
 	stream<net_axis<DATA_WIDTH> > rxData1;
-	stream<appTxMeta> txMetaData1;
 	stream<net_axis<DATA_WIDTH> > txData1;
-	stream<appTxRsp> txStatus1;
     
 	stream<appNotification> notifications2;
 	stream<appReadRequest> readRequest2;
 	stream<ap_uint<16> > rxMetaData2;
 	stream<net_axis<DATA_WIDTH> > rxData2;
-	stream<appTxMeta> txMetaData2;
 	stream<net_axis<DATA_WIDTH> > txData2;
-	stream<appTxRsp> txStatus2;
 
     workload_gen();
 
@@ -867,19 +845,18 @@ int main()
 #define TEST 1
 
 #if TEST == 1
-        client(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1, clientSessionID);
-        memcached(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2, memcachedSessionID);
+        client(notifications1, readRequest1, rxMetaData1, rxData1, txData1, clientSessionID);
+        memcached(notifications2, readRequest2, rxMetaData2, rxData2, txData2, memcachedSessionID);
 #elif TEST == 2
-        client2(notifications1, readRequest1, rxMetaData1, rxData1, txMetaData1, txData1, txStatus1, clientSessionID);
-        memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txMetaData2, txData2, txStatus2, memcachedSessionID);
+        client2(notifications1, readRequest1, rxMetaData1, rxData1, txData1, clientSessionID);
+        memcached2(notifications2, readRequest2, rxMetaData2, rxData2, txData2, memcachedSessionID);
 #endif
 
         mux(notifications1, notifications2, notifications);
         appReqMux(readRequest, readRequest1, readRequest2, clientSessionID, memcachedSessionID);
         mux(rxMetaData1, rxMetaData2, rxMetaData);
         mux(rxData1, rxData2, rxData);
-        txMetaMux(txMetaData, txMetaData1, txMetaData2, txData, txData1, txData2, clientSessionID, memcachedSessionID);
-        mux(txStatus1, txStatus2, txStatus);
+        txMetaMux(txMetaData, txData, txData1, txData2, txStatus, clientSessionID, memcachedSessionID);
         
 		switch(tbState){
             case 0: {

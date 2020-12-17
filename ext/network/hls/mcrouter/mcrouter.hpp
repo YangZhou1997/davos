@@ -89,7 +89,7 @@ struct msgHeader {
     }
 };
 
-#define MAX_BODY_LEN (1024-35-48*3-5) // 840
+#define MAX_BODY_LEN (1024-35-48*3-5-8) // 832
 #define MAX_KEY_LEN (40*8)
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID
@@ -100,6 +100,7 @@ struct msgBody {
     ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<5>                  reserved;
+    ap_uint<8>                  reserved2;
     ap_uint<MAX_BODY_LEN>       body;
     msgBody() {}
     void consume_word(ap_uint<1024>& w){
@@ -111,10 +112,11 @@ struct msgBody {
         keyPtr = w(940, 893);
         valPtr = w(892, 845);
         reserved = w(844, 840);
-        body = w(839, 0);
+        reserved2 = w(839, 832);
+        body = w(831, 0);
     }
     ap_uint<1024> output_word(){
-        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, reserved, body);
+        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, reserved, reserved2, body);
     }
     void reset(){
         msgID = 0;
@@ -125,6 +127,7 @@ struct msgBody {
         keyPtr = 0;
         valPtr = 0;
         reserved = 0;
+        reserved2 = 0;
         body = 0;
     }
 
