@@ -30,6 +30,40 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 #include "fsmtest.hpp"
 
 void test(	
+    hls::stream<ap_uint<64> >& input,
+    hls::stream<ap_uint<16> >& input1,
+	hls::stream<ap_uint<16> >& output)
+{
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+
+// !!! 22 iteration latency and II=1
+// the time between the first input and the first output requires 22 cycles
+// after the first output, every two cycles there will be a output generated, 
+
+    static ap_uint<64> globalIn = 0;
+    static ap_uint<16> idx = 0;
+
+	static ap_uint<1> fsmState = 0;
+	switch (fsmState)
+	{
+	case 0:
+        if(!input.empty() && !input1.empty()){
+            globalIn = input.read();
+            idx = input1.read();
+            fsmState = 1;
+        }
+		break;
+    case 1: 
+        ap_uint<16> globalIn1 = globalIn(16, 0) / idx;
+        ap_uint<16> tmp = globalIn1;
+        output.write(tmp);
+        fsmState = 0;
+        break;
+	}
+}
+
+void test1(	
     hls::stream<ap_uint<16> >& input,
 	hls::stream<ap_uint<16> >& output)
 {
@@ -38,20 +72,6 @@ void test(
 
     static ap_uint<16> globalIn = 0;
 
-	// static ap_uint<1> fsmState = 0;
-	// switch (fsmState)
-	// {
-	// case 0:
-    //     if(!input.empty()){
-    //         globalIn = input.read();
-    //         fsmState = 1;
-    //     }
-	// 	break;
-    // case 1: 
-    //     output.write(globalIn);
-    //     fsmState = 0;
-    //     break;
-	// }
     if(!input.empty()) {
         globalIn = input.read();
         globalIn += 1;
@@ -73,7 +93,7 @@ void test2(
     }
 }
 
-void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output)
+void fsmtest(hls::stream<ap_uint<64> >& input, hls::stream<ap_uint<16> >& input1, hls::stream<ap_uint<16> >& output)
 {
 	#pragma HLS DATAFLOW disable_start_propagation
 	#pragma HLS INTERFACE ap_ctrl_none port=return
@@ -81,9 +101,11 @@ void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output
 #pragma HLS INTERFACE axis register port=input name=s_axis_input_port
 #pragma HLS INTERFACE axis register port=output name=m_axis_output_port
 
-    static hls::stream<ap_uint<16> > tmpInput;
-    #pragma HLS stream variable=tmpInput depth=64
+    // static hls::stream<ap_uint<16> > tmpInput;
+    // #pragma HLS stream variable=tmpInput depth=64
 
-    test(input, tmpInput);
-    test2(tmpInput, output);
+    // test1(input, tmpInput);
+    // test2(tmpInput, output);
+
+    test(input, input1, output);
 }

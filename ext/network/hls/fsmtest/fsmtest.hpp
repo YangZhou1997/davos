@@ -32,4 +32,5 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 /** @defgroup fsmtest Echo Server Application
  *
  */
-void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output);
+// void fsmtest(hls::stream<ap_uint<16> >& input, hls::stream<ap_uint<16> >& output);
+void fsmtest(hls::stream<ap_uint<64> >& input, hls::stream<ap_uint<16> >& input1, hls::stream<ap_uint<16> >& output);
