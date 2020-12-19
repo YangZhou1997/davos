@@ -340,7 +340,8 @@ void parser(
                 if(response.hit){
                     currMsgBody.consume_word(response.value);
                 }
-                else{ // this is the first word for this session. 
+                else{
+                    // currMsgBody.reset(); // fresh new start for this sesion. 
                     currMsgBody.msgID = currentMsgID;
                     currentMsgID += 1;
                 }
@@ -495,11 +496,12 @@ void parser(
 
                 // the AXIS for current session still has data to parse; we do not need to store currSessionState back.  
                 // sessionStateTable[currSessionID] = currSessionState;
-                // s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
 
                 currSessionState.reset(); // ready to parse next message
                 currMsgBody.msgID = currentMsgID;
                 currentMsgID++;
+
+                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
             }
             if(currWordValidLen > 0){
                 currAxisState = PARSE_WORD;
@@ -521,12 +523,8 @@ void parser(
                 currMsgHeader.display();
                 currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
-                // In the end of each AXIS, store sessionState and currMsgBody back. 
                 sessionStateTable[currSessionID].reset();
-                currMsgBody.msgID = currentMsgID;
-                currentMsgID++;
-                // !!! you could also delete the current session context, but it will increase the possibility of KV_UPDATE_INSERT. 
-                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
+                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
             }
             else{
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
