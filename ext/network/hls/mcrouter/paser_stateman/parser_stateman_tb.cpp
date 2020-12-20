@@ -33,7 +33,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace std;
 using namespace hls;
-using namespace parser_stateman;
+// using namespace parser_stateman_np;
 
 int main()
 {
@@ -80,7 +80,7 @@ int main()
     int successCounter = 0;
     while (count < numElements+100)
     {
-        parser_stateman_top(s_axis_lup_req,
+        parser_stateman(s_axis_lup_req,
                     s_axis_upd_req,
                     m_axis_lup_rsp,
                     m_axis_upd_rsp,
@@ -126,7 +126,7 @@ int main()
     it = expectedKV.begin();
     while (count < numElements+100)
     {
-        parser_stateman_top( s_axis_lup_req,
+        parser_stateman(s_axis_lup_req,
                     s_axis_upd_req,
                     m_axis_lup_rsp,
                     m_axis_upd_rsp,

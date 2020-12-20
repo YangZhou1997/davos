@@ -31,7 +31,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../mcrouter.hpp"
 
 // #include <hash_table_config.hpp>
-namespace parser_stateman {
+// namespace parser_stateman_np {
 
 const uint32_t MAX_NUMBER_OF_ENTRIES = 1000;
 #include <math.h>
@@ -114,11 +114,24 @@ struct stashEntry
         : request(request), valid(valid) {}
 };
 
-void parser_stateman_top(
-                hls::stream<htLookupReq>&      s_axis_lup_req,
-                hls::stream<htUpdateReq>&     s_axis_upd_req,
-                hls::stream<htLookupResp>&    m_axis_lup_rsp,
-                hls::stream<htUpdateResp>&    m_axis_upd_rsp,
-                hls::stream<ap_uint<16> >&    regInsertFailureCount);
+void ht_insert(
+    hls::stream<htUpdateReq>&   requestFifo, 
+    hls::stream<htUpdateResp>&  responseFifo, 
+    hls::stream<ap_uint<16> >&  regInsertFailureCount);
 
-}
+void parser_stateman_running(
+    hls::stream<htLookupReq>&       s_axis_lup_req,
+    hls::stream<htUpdateReq>&       s_axis_upd_req,
+    hls::stream<htLookupResp>&      m_axis_lup_rsp,
+    hls::stream<htUpdateResp>&      m_axis_upd_rsp, 
+    hls::stream<htUpdateReq>&       requestFifo, 
+    hls::stream<htUpdateResp>&      responseFifo);
+
+void parser_stateman(
+    hls::stream<htLookupReq>&     s_axis_lup_req,
+    hls::stream<htUpdateReq>&     s_axis_upd_req,
+    hls::stream<htLookupResp>&    m_axis_lup_rsp,
+    hls::stream<htUpdateResp>&    m_axis_upd_rsp,
+    hls::stream<ap_uint<16> >&    regInsertFailureCount);
+
+// }

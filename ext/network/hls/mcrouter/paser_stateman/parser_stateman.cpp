@@ -29,7 +29,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "parser_stateman.hpp"
 
 // using namespace hls;
-namespace parser_stateman {
+// namespace parser_stateman_np {
 
 const ap_uint<MAX_ADDRESS_BITS> tabulation_table[NUM_TABLES][2][MAX_KEY_SIZE] = {
     #include "tabulation_table.txt"
@@ -39,7 +39,6 @@ static htEntry cuckooTables[NUM_TABLES][TABLE_SIZE];
 
 void calculate_hashes(ap_uint<KEY_SIZE> key, ap_uint<TABLE_ADDRESS_BITS>   hashes[NUM_TABLES])
 {
-#pragma HLS INLINE
 #pragma HLS ARRAY_PARTITION variable=hashes complete dim=1
 
     for (int i = 0; i < NUM_TABLES; i++)
@@ -125,13 +124,21 @@ htUpdateResp ht_update(htUpdateReq request)
     return response;
 }
 
-void ht_insert(hls::stream<htUpdateReq>& requestFifo, hls::stream<htUpdateResp>& responseFifo, hls::stream<ap_uint<16> >& regInsertFailureCount)
+void ht_insert(
+    hls::stream<htUpdateReq>& requestFifo_update, 
+    hls::stream<htUpdateReq>& requestFifo, 
+    hls::stream<htUpdateResp>& responseFifo, 
+    hls::stream<ap_uint<16> >& regInsertFailureCount)
 {
 // #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 // #pragma HLS INLINE
-
-    if(!requestFifo.empty()){
+    if(!requestFifo_update.empty()){
+        htUpdateReq request = requestFifo.read();
+        // This is guaranteed to be existing. 
+        ht_update(request);
+    }
+    else if(!requestFifo.empty()){
         htUpdateReq request = requestFifo.read();
 
         // do we need to make it static?? 
@@ -211,6 +218,7 @@ void ht_insert(hls::stream<htUpdateReq>& requestFifo, hls::stream<htUpdateResp>&
 static stashEntry stashTable[STASH_SIZE];
 
 bool stash_insert(htUpdateReq request){
+#pragma HLS INLINE
     bool response = false;
 
     int slot = -1;
@@ -232,6 +240,7 @@ bool stash_insert(htUpdateReq request){
 }
 
 htLookupResp stash_lookup(ap_uint<KEY_SIZE> key){
+#pragma HLS INLINE
     htLookupResp response;
     response.key = key;
     response.source = 0;
@@ -256,6 +265,7 @@ htLookupResp stash_lookup(ap_uint<KEY_SIZE> key){
 }
 
 bool stash_remove(ap_uint<KEY_SIZE> key){
+#pragma HLS INLINE
     bool response = false;
 
     int slot = -1;
@@ -275,11 +285,12 @@ bool stash_remove(ap_uint<KEY_SIZE> key){
     return response;
 }
 
-void parser_stateman(
+void parser_stateman_running(
     hls::stream<htLookupReq>&       s_axis_lup_req,
     hls::stream<htUpdateReq>&       s_axis_upd_req,
     hls::stream<htLookupResp>&      m_axis_lup_rsp,
     hls::stream<htUpdateResp>&      m_axis_upd_rsp, 
+    hls::stream<htUpdateReq>&       requestFifo_update, 
     hls::stream<htUpdateReq>&       requestFifo, 
     hls::stream<htUpdateResp>&      responseFifo
 )
@@ -299,11 +310,23 @@ void parser_stateman(
     {
         std::cout << "update_insert" << std::endl;
         htUpdateReq request = s_axis_upd_req.read();
+        htUpdateResp response;
+        response.key = request.key;
+        response.value1 = request.value1;
+        response.value2 = request.value2;
+        response.success = true;
+        
         // try to update hash table in case this is the not a new session
-        htUpdateResp response = ht_update(request);
+        // !!! this breaks srsw in HLS
+        // htUpdateResp response = ht_update(request);
 
-        if(response.success){
+        htLookupReq request2(request.key, 0);
+        htLookupResp response2 = ht_lookup(request2);
+        
+        if(response2.hit){
             std::cout << "update_insert update succeeds" << std::endl;
+            requestFifo_update.write(request);
+
             m_axis_upd_rsp.write(response);
         }
         else{
@@ -315,8 +338,7 @@ void parser_stateman(
             }
             // submit request to insert module to do real insert. 
             requestFifo.write(request);
-
-            response.success = true;
+            
             m_axis_upd_rsp.write(response);
         }
     }
@@ -331,7 +353,7 @@ void parser_stateman(
     }
 }
 
-void parser_stateman_top(
+void parser_stateman(
     hls::stream<htLookupReq>&     s_axis_lup_req,
     hls::stream<htUpdateReq>&     s_axis_upd_req,
     hls::stream<htLookupResp>&    m_axis_lup_rsp,
@@ -339,8 +361,6 @@ void parser_stateman_top(
     hls::stream<ap_uint<16> >&    regInsertFailureCount
 )
 {
-#pragma HLS INLINE
-
 #pragma HLS DATAFLOW disable_start_propagation
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
@@ -357,7 +377,8 @@ void parser_stateman_top(
     //Global arrays
     #pragma HLS ARRAY_PARTITION variable=tabulation_table complete dim=1
 
-    #pragma HLS RESOURCE variable=cuckooTables core=RAM_2P_BRAM
+    //!!! guarantee read and write in the same cycle. 
+    #pragma HLS RESOURCE variable=cuckooTables core=RAM_T2P_BRAM
     #pragma HLS ARRAY_PARTITION variable=cuckooTables complete dim=1
 
     // hls will infer it as registers
@@ -367,11 +388,16 @@ void parser_stateman_top(
     #pragma HLS stream variable=requestFifo depth=64
     #pragma HLS DATA_PACK variable=requestFifo
     
+    static hls::stream<htUpdateReq>       requestFifo_update;
+    #pragma HLS stream variable=requestFifo_update depth=64
+    #pragma HLS DATA_PACK variable=requestFifo_update
+    
     static hls::stream<htUpdateResp>       responseFifo;
     #pragma HLS stream variable=responseFifo depth=64
     #pragma HLS DATA_PACK variable=responseFifo
 
-    ht_insert(requestFifo, responseFifo, regInsertFailureCount);
-    parser_stateman(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, requestFifo, responseFifo);
+    ht_insert(requestFifo_update, requestFifo, responseFifo, regInsertFailureCount);
+    parser_stateman_running(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, \
+        requestFifo_update, requestFifo, responseFifo);
 }
-}
+// }

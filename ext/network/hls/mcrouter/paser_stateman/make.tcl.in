@@ -5,7 +5,7 @@ open_solution "solution1"
 set_part ${FPGA_PART}
 create_clock -period ${CLOCK_PERIOD} -name default
 
-set_top ${PROJECT_NAME}_top
+set_top ${PROJECT_NAME}
 
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/../../axi_utils.cpp
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/parser_stateman.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
@@ -21,7 +21,7 @@ if {$command == "synthesis"} {
 } elseif {$command == "csim"} {
    csim_design
 } elseif {$command == "ip"} {
-   export_design -format ip_catalog -ipname "mcrouter" -display_name "Echo Server Application for 10G TOE" -description "Echos packets on connections coming in on port 7." -vendor "ethz.systems" -version "1.2"
+   export_design -format ip_catalog -ipname "parser_stateman" -display_name "parser state manager" -description "parser state manager." -vendor "yangzhou.me" -version "1.0"
 } elseif {$command == "installip"} {
    file mkdir ${IPREPO_DIR}
    file delete -force ${IPREPO_DIR}/${PROJECT_NAME}
