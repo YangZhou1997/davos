@@ -227,18 +227,20 @@ void parser_stateman_top(
     hls::stream<ap_uint<16> >&    regInsertFailureCount
 )
 {
-#pragma HLS DATAFLOW disable_start_propagation
-#pragma HLS INTERFACE ap_ctrl_none port=return
+#pragma HLS INLINE
 
-#pragma HLS INTERFACE axis register port=s_axis_lup_req
-#pragma HLS INTERFACE axis register port=s_axis_upd_req
-#pragma HLS INTERFACE axis register port=m_axis_lup_rsp
-#pragma HLS INTERFACE axis register port=m_axis_upd_rsp
-#pragma HLS INTERFACE axis register port=regInsertFailureCount
-#pragma HLS DATA_PACK variable=s_axis_lup_req
-#pragma HLS DATA_PACK variable=s_axis_upd_req
-#pragma HLS DATA_PACK variable=m_axis_lup_rsp
-#pragma HLS DATA_PACK variable=m_axis_upd_rsp
+// #pragma HLS DATAFLOW disable_start_propagation
+// #pragma HLS INTERFACE ap_ctrl_none port=return
+
+// #pragma HLS INTERFACE axis register port=s_axis_lup_req
+// #pragma HLS INTERFACE axis register port=s_axis_upd_req
+// #pragma HLS INTERFACE axis register port=m_axis_lup_rsp
+// #pragma HLS INTERFACE axis register port=m_axis_upd_rsp
+// #pragma HLS INTERFACE axis register port=regInsertFailureCount
+// #pragma HLS DATA_PACK variable=s_axis_lup_req
+// #pragma HLS DATA_PACK variable=s_axis_upd_req
+// #pragma HLS DATA_PACK variable=m_axis_lup_rsp
+// #pragma HLS DATA_PACK variable=m_axis_upd_rsp
 
     parser_stateman(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
 }

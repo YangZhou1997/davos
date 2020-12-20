@@ -279,6 +279,7 @@ void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHea
     }
 }
 
+
 void parser(
     hls::stream<ap_uint<16> >& rxMetaData, // input
 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
@@ -291,8 +292,6 @@ void parser(
 ){
 #pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
-    // generating globally unique msgID. 
-    static ap_uint<32> currentMsgID = 1;
     // this ASIX transaction should be locked. 
     // rxTransID is not the same as currentMsgID, as one transaction might include multiple msg. 
     static ap_uint<32> rxTransID = 1;
@@ -339,8 +338,6 @@ void parser(
                 else{ // this is the first word for this session. 
                     currSessionState.reset();
                     currMsgBody.reset();
-                    currMsgBody.msgID = currentMsgID;
-                    currentMsgID += 1;
                 }
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "RECOVER_STATE " << response.hit << std::endl;
@@ -469,70 +466,70 @@ void parser(
                     currWordValidLen = 0;
                 }
             }
+
+            if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+            std::cout << "currWordValidLen=" << currWordValidLen << std::endl;
+
+            ap_uint<1> parsingMsgState = (currSessionState.parsingHeaderState == 1 && currSessionState.parsingBodyState == 1);
+            
+            if(currWordValidLen > 0 || (currWordValidLen == 0 && currWord.last != 1)){
+                if(parsingMsgState){
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "writing currMsgBody (path1) for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+
+                    // !!! only write out when current msg is parsed
+                    msgHeaderFifo.write(currMsgHeader);
+                    msgBodyFifo.write(currMsgBody);
+                    sessionIdFifo.write(currSessionID);
+
+                    currMsgHeader.display();
+                    currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
+
+                    currSessionState.reset(); // ready to parse next message
+                    // currMsgBody.msgID = currentMsgID;
+                    // currentMsgID++;
+                }
+                if(currWordValidLen > 0){
+                    currAxisState = PARSE_WORD;
+                }
+                else{
+                    currAxisState = READ_WORD;
+                }
+            }
+            else if(currWord.last == 1){
+                if(parsingMsgState){
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "writing currMsgBody for (path2) currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                    
+                    // !!! only write out when current msg is parsed
+                    msgHeaderFifo.write(currMsgHeader);
+                    msgBodyFifo.write(currMsgBody);
+                    sessionIdFifo.write(currSessionID);
+                    
+                    currMsgHeader.display();
+                    currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
+
+                    // In the end of each AXIS, store sessionState and currMsgBody back. 
+                    currSessionState.reset();
+                    currMsgBody.reset();
+                    // currMsgBody.msgID = currentMsgID;
+                    // currentMsgID++;
+                    // !!! you could also delete the current session context, but it will increase the possibility of KV_UPDATE_INSERT. 
+                    s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState, currMsgBody, 0));
+                }
+                else{
+                    if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+                    std::cout << "storing sessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                    
+                    // In the end of each AXIS, store sessionState and currMsgBody back. 
+                    s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState,currMsgBody, 0));
+                    // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
+                    // TODO: or store currMsgBody in URAM. 
+                }
+                currAxisState = IDLE;
+            }
+            break;
         }
-
-        if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-        std::cout << "currWordValidLen=" << currWordValidLen << std::endl;
-
-        ap_uint<1> parsingMsgState = (currSessionState.parsingHeaderState == 1 && currSessionState.parsingBodyState == 1);
-        
-        if(currWordValidLen > 0 || (currWordValidLen == 0 && currWord.last != 1)){
-            if(parsingMsgState){
-                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "writing currMsgBody (path1) for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
-
-                // !!! only write out when current msg is parsed
-                msgHeaderFifo.write(currMsgHeader);
-                msgBodyFifo.write(currMsgBody);
-                sessionIdFifo.write(currSessionID);
-
-                currMsgHeader.display();
-                currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
-
-                currSessionState.reset(); // ready to parse next message
-                currMsgBody.msgID = currentMsgID;
-                currentMsgID++;
-            }
-            if(currWordValidLen > 0){
-                currAxisState = PARSE_WORD;
-            }
-            else{
-                currAxisState = READ_WORD;
-            }
-        }
-        else if(currWord.last == 1){
-            if(parsingMsgState){
-                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "writing currMsgBody for (path2) currMsgBody.msgID " << currMsgBody.msgID << std::endl;
-                
-                // !!! only write out when current msg is parsed
-                msgHeaderFifo.write(currMsgHeader);
-                msgBodyFifo.write(currMsgBody);
-                sessionIdFifo.write(currSessionID);
-                
-                currMsgHeader.display();
-                currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
-
-                // In the end of each AXIS, store sessionState and currMsgBody back. 
-                currSessionState.reset();
-                currMsgBody.reset();
-                currMsgBody.msgID = currentMsgID;
-                currentMsgID++;
-                // !!! you could also delete the current session context, but it will increase the possibility of KV_UPDATE_INSERT. 
-                s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState, currMsgBody, 0));
-            }
-            else{
-                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "storing sessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
-                
-                // In the end of each AXIS, store sessionState and currMsgBody back. 
-                s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState,currMsgBody, 0));
-                // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
-                // TODO: or store currMsgBody in URAM. 
-            }
-            currAxisState = IDLE;
-        }
-        break;
     }
 }
 
@@ -588,6 +585,9 @@ void proxy(
     static msgBody currMsgBody;
     static ap_uint<16> currSessionID_dst;
     
+    // generating globally unique msgID. 
+    static ap_uint<32> currentMsgID = 1;
+
     enum proxy_fsmType {IDLE=0, GET_HASH, GET_DEST, GET_WRITEOUT, SET_RANGE, SET_CHECKHT, SET_BROADCAST, RSP_MQ, RSP_HT, RSP_CHECKHT};
 
 #ifndef __SYNTHESIS__
@@ -606,6 +606,11 @@ void proxy(
                 sessionIdFifo.read(currSessionID);
                 msgHeaderFifo.read(currMsgHeader);
                 msgBodyFifo.read(currMsgBody);
+
+                // generating msgID for each parsed msg. 
+                currMsgBody.msgID = currentMsgID;
+                currentMsgID += 1;
+
                 switch(currMsgHeader.opcode){
                     case PROTOCOL_BINARY_CMD_GET: { // GET -> picks one memcached based on key hashing. 
                         ap_uint<MAX_KEY_LEN> key;
