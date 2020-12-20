@@ -285,9 +285,9 @@ void parser(
     hls::stream<ap_uint<16> >& sessionIdFifo, // output
     hls::stream<msgHeader>& msgHeaderFifo, // output
     hls::stream<msgBody>& msgBodyFifo, // output
-    hls::stream<hash_table_16_1024::htLookupReq<16> >&       s_axis_lup_req, 
-    hls::stream<hash_table_16_1024::htUpdateReq<16,1024> >&    s_axis_upd_req, 
-    hls::stream<hash_table_16_1024::htLookupResp<16,1024> >&   m_axis_lup_rsp
+    hls::stream<parser_htLookupReq>&    s_axis_lup_req, 
+    hls::stream<parser_htUpdateReq>&    s_axis_upd_req, 
+    hls::stream<parser_htLookupResp>&   m_axis_lup_rsp
 ){
 #pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
@@ -298,11 +298,6 @@ void parser(
     static ap_uint<32> rxTransID = 1;
  
     static ap_uint<32> currRxTransID = 1;
-
-    // static value gets inited to zero by default. 
-    static sessionState sessionStateTable[MAX_SESSION_NUM];
-    #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-    #pragma HLS DEPENDENCE variable=sessionStateTable inter false
 
     enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
 #ifndef __SYNTHESIS__
@@ -328,7 +323,7 @@ void parser(
         case IDLE: { // a new AXIS transaction 
             if(!rxMetaData.empty()){
                 rxMetaData.read(currSessionID);
-                s_axis_lup_req.write(hash_table_16_1024::htLookupReq<16>(currSessionID, 0));
+                s_axis_lup_req.write(parser_htLookupReq(currSessionID, 0));
                 currAxisState = RECOVER_STATE;
             }
             break;
@@ -336,11 +331,14 @@ void parser(
         // get the session-specific parsing state
         case RECOVER_STATE: {
             if(!m_axis_lup_rsp.empty()){
-                hash_table_16_1024::htLookupResp<16, 1024> response = m_axis_lup_rsp.read();
+                parser_htLookupResp response = m_axis_lup_rsp.read();
                 if(response.hit){
-                    currMsgBody.consume_word(response.value);
+                    currSessionState = response.value1;
+                    currMsgBody = response.value2;
                 }
                 else{ // this is the first word for this session. 
+                    currSessionState.reset();
+                    currMsgBody.reset();
                     currMsgBody.msgID = currentMsgID;
                     currentMsgID += 1;
                 }
@@ -348,8 +346,6 @@ void parser(
                 std::cout << "RECOVER_STATE " << response.hit << std::endl;
                 // we should expect the hash table is enough to handle all active connections; 
                 
-                // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
-                currSessionState = sessionStateTable[currSessionID];
                 std::cout << "currSessionState: " << std::endl;
                 currSessionState.display();
             
@@ -493,10 +489,6 @@ void parser(
                 currMsgHeader.display();
                 currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
-                // the AXIS for current session still has data to parse; we do not need to store currSessionState back.  
-                // sessionStateTable[currSessionID] = currSessionState;
-                // s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
-
                 currSessionState.reset(); // ready to parse next message
                 currMsgBody.msgID = currentMsgID;
                 currentMsgID++;
@@ -522,19 +514,19 @@ void parser(
                 currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
                 // In the end of each AXIS, store sessionState and currMsgBody back. 
-                sessionStateTable[currSessionID].reset();
+                currSessionState.reset();
+                currMsgBody.reset();
                 currMsgBody.msgID = currentMsgID;
                 currentMsgID++;
                 // !!! you could also delete the current session context, but it will increase the possibility of KV_UPDATE_INSERT. 
-                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
+                s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState, currMsgBody, 0));
             }
             else{
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                 std::cout << "storing sessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                 
                 // In the end of each AXIS, store sessionState and currMsgBody back. 
-                sessionStateTable[currSessionID] = currSessionState;
-                s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
+                s_axis_upd_req.write(parser_htUpdateReq(currSessionID, currSessionState,currMsgBody, 0));
                 // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
                 // TODO: or store currMsgBody in URAM. 
             }
@@ -913,7 +905,7 @@ void deparser(
 
 void dummy(	
     hls::stream<ap_uint<16> >& closeConnection,
-    hls::stream<hash_table_16_1024::htUpdateResp<16,1024> >&  m_axis_upd_rsp,
+    hls::stream<parser_htUpdateResp>&  m_axis_upd_rsp,
     hls::stream<ap_uint<16> >& regInsertFailureCount,
     hls::stream<ap_uint<16> >& regInsertFailureCount2
 ){
@@ -925,7 +917,7 @@ void dummy(
     }
 
     if(!m_axis_upd_rsp.empty()){
-        hash_table_16_1024::htUpdateResp<16,1024> response = m_axis_upd_rsp.read();
+        parser_htUpdateResp response = m_axis_upd_rsp.read();
         if (!response.success){
             std::cout << "[ERROR] update failed" << std::endl;
         }
@@ -1041,10 +1033,10 @@ void mcrouter(
     #pragma HLS stream variable=mc_hashFifo depth=64
 
 
-    static hls::stream<hash_table_16_1024::htLookupReq<16> >         s_axis_lup_req;
-    static hls::stream<hash_table_16_1024::htUpdateReq<16,1024> >    s_axis_upd_req;
-    static hls::stream<hash_table_16_1024::htLookupResp<16,1024> >   m_axis_lup_rsp;
-    static hls::stream<hash_table_16_1024::htUpdateResp<16,1024> >   m_axis_upd_rsp;
+    static hls::stream<parser_htLookupReq>    s_axis_lup_req;
+    static hls::stream<parser_htUpdateReq>    s_axis_upd_req;
+    static hls::stream<parser_htLookupResp>   m_axis_lup_rsp;
+    static hls::stream<parser_htUpdateResp>   m_axis_upd_rsp;
     static hls::stream<ap_uint<16> > regInsertFailureCount;
     #pragma HLS stream variable=s_axis_lup_req depth=64
     #pragma HLS stream variable=s_axis_upd_req depth=64
@@ -1112,7 +1104,7 @@ void mcrouter(
     #pragma HLS stream variable=mc_sessionIdFifo8 depth=64
 
     // initing a hash table block
-    hash_table_16_1024::hash_table_top(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
+    parser_stateman_top(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
     hash_table_32_32::hash_table_top(s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1, regInsertFailureCount1);
 
     // initing a multi queue block
