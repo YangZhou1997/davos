@@ -26,6 +26,17 @@ struct msgHeader {
         opaque = 0;
         cas = 0;
     }
+    void reset(){
+        magic = 0;
+        opcode = 0;
+        keyLen = 0;
+        extLen = 0;
+        dataType = 0;
+        status = 0;
+        bodyLen = 0;
+        opaque = 0;
+        cas = 0;
+    }
     void consume_word(ap_uint<24*8>& w){
         magic = w(191, 184);
         opcode = w(183, 176);

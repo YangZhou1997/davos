@@ -30,6 +30,55 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../../axi_utils.hpp"
 #include "../common.hpp"
 
+struct bodyExtState{
+    ap_uint<DATA_WIDTH> data;
+    ap_uint<32> currWord_parsingPos;
+    ap_uint<32> currWordValidLen;
+    ap_uint<32> currBodyLen;
+    ap_uint<32> requiredBodyLen;
+    msgHeader   currMsgHeader;
+    ap_uint<4>  lastMsgIndicator;
+    bodyExtState(){
+        data = 0;
+        currWord_parsingPos = 0;
+        currWordValidLen = 0;
+        currBodyLen = 0;
+        requiredBodyLen = 0;
+        currMsgHeader.reset();
+        lastMsgIndicator = 0;
+    }
+    bodyExtState(ap_uint<DATA_WIDTH> data, ap_uint<32> currWord_parsingPos, ap_uint<32> currWordValidLen, 
+        ap_uint<32> currBodyLen, ap_uint<32> requiredBodyLen, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator): 
+        data(data), currWord_parsingPos(currWord_parsingPos), currWordValidLen(currWordValidLen), 
+        currBodyLen(currBodyLen), requiredBodyLen(requiredBodyLen), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator) {}
+};
+
+struct bodyExtState2{
+    msgHeader   currMsgHeader;
+    ap_uint<4>  lastMsgIndicator;
+    bodyExtState2(){
+        currMsgHeader.reset();
+        lastMsgIndicator = 0;
+    }
+    bodyExtState2(msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator): 
+        currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator) {}
+};
+
+struct bodyMergeState{
+    msgHeader   currMsgHeader;
+    ap_uint<4>  lastMsgIndicator;
+    ap_uint<32> startPos;
+    ap_uint<32> length;
+    bodyMergeState(){
+        currMsgHeader.reset();
+        lastMsgIndicator = 0;
+        startPos = 0;
+        length = 0;
+    }
+    bodyMergeState(msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, ap_uint<32> startPos, ap_uint<32> length): 
+        currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), startPos(startPos), length(length){}
+};
+
 void parser(
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo,
     hls::stream<sessionState>&              currSessionStateFifo,
