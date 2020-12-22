@@ -75,68 +75,9 @@ struct stashEntry
 const uint32_t STASH_SIZE = 8;
 static stashEntry stashTable[STASH_SIZE];
 
-bool stash_insert(ap_uint<16> sessionID){
-#pragma HLS INLINE
-    bool response = false;
-
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
-    {
-        #pragma HLS UNROLL
-        if(!stashTable[i].valid)
-        {
-            slot = i;
-        }
-    }
-    std::cout << "stash_insert slot = " << slot << std::endl;
-    if(slot != -1){
-        response = true;
-        stashTable[slot].sessionID = sessionID;
-        stashTable[slot].valid = true;
-    }
-    return response;
-}
-
-bool stash_lookup(ap_uint<16> sessionID){
-#pragma HLS INLINE
-    bool response = false;
-
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
-    {
-        #pragma HLS UNROLL
-        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_lookup i = " << i << std::endl;
-            slot = i;
-        }
-    }
-    if(slot != -1){
-        response = true;
-    }
-    return response;
-}
-
-bool stash_remove(ap_uint<16> sessionID){
-#pragma HLS INLINE
-    bool response = false;
-
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
-    {
-        #pragma HLS UNROLL
-        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_remove i = " << i << std::endl;
-            slot = i;
-        }
-    }
-    if(slot != -1){
-        stashTable[slot].valid = false;
-        response = true;
-    }
-    return response;
-}
+bool stash_insert(ap_uint<16> sessionID);
+bool stash_lookup(ap_uint<16> sessionID);
+bool stash_remove(ap_uint<16> sessionID);
 
 /** @defgroup mcrouter Echo Server Application
  *

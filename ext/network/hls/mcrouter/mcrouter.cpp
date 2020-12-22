@@ -217,34 +217,103 @@ void notification_handler(
 }
 
 #define MAX_SESSION_NUM ((1 << 16) - 1)
+bool stash_insert(ap_uint<16> sessionID){
+#pragma HLS INLINE
+    bool response = false;
+
+    int slot = -1;
+    for (int i = 0; i < STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(!stashTable[i].valid)
+        {
+            slot = i;
+        }
+    }
+    std::cout << "stash_insert slot = " << slot << std::endl;
+    if(slot != -1){
+        response = true;
+        stashTable[slot].sessionID = sessionID;
+        stashTable[slot].valid = true;
+    }
+    return response;
+}
+
+bool stash_lookup(ap_uint<16> sessionID){
+#pragma HLS INLINE
+    bool response = false;
+
+    int slot = -1;
+    for (int i = 0; i < STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
+        {
+            std::cout << "stash_lookup i = " << i << std::endl;
+            slot = i;
+        }
+    }
+    if(slot != -1){
+        response = true;
+    }
+    return response;
+}
+
+bool stash_remove(ap_uint<16> sessionID){
+#pragma HLS INLINE
+    bool response = false;
+
+    int slot = -1;
+    for (int i = 0; i < STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
+        {
+            std::cout << "stash_remove i = " << i << std::endl;
+            slot = i;
+        }
+    }
+    if(slot != -1){
+        stashTable[slot].valid = false;
+        response = true;
+    }
+    return response;
+}
 
 void state_recovery(
-	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
-    hls::stream<htUpdateReq>&     s_axis_upd_req, // output to parser_stateman
-    hls::stream<htLookupResp>&    m_axis_lup_rsp, // input from parser_stateman
-    hls::stream<htUpdateResp>&    m_axis_upd_rsp, // input from parser_stateman
-    hls::stream<ap_uint<16> >& sessionIdFifo // output to notify admission_control
+	hls::stream<net_axis<DATA_WIDTH> >&     rxData, // intput 
+    hls::stream<parser_htLookupResp>&       m_axis_lup_rsp, // input from parser_stateman
+    hls::stream<parser_htUpdateResp>&       m_axis_upd_rsp, // input from parser_stateman
+    hls::stream<parser_htUpdateReq>&        s_axis_upd_req, // output to parser_stateman
+    hls::stream<ap_uint<16> >&              sessionIdFifo_out, // output to notify admission_control
+    // the word waiting for parsing
+    hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo_out, // output to parser
+    // the external states before parsing this word
+    hls::stream<sessionState>&              currSessionStateFifo_out, // output to parser
+    hls::stream<msgBody>&                   currMsgBodyFifo_out // output to parser
 ){
-    
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+
 }
 
 #define NUM_WAITING_Q 2
 void admission_control(
     hls::stream<ap_uint<16> >&          rxMetaData, // input
 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
-    hls::stream<htLookupReq>&           s_axis_lup_req, // output
-    hls::stream<ap_uint<16> >&          sessionIdFifo, // input
+    hls::stream<ap_uint<16> >&          sessionIdFifo_in, // input
+    hls::stream<parser_htLookupReq>&    s_axis_lup_req, // output
 	hls::stream<net_axis<DATA_WIDTH> >& rxData_out // output
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
     // static value gets inited to zero by default. 
     // multile queues 
-    static std::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
+    static hls::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
     #pragma HLS stream variable=sessionWaitingQueues[0] depth=64
     #pragma HLS stream variable=sessionWaitingQueues[1] depth=64
     
-    static std::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
+    static hls::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
     #pragma HLS stream variable=wordWaitingQueues[0] depth=128
     #pragma HLS stream variable=wordWaitingQueues[1] depth=128
     
@@ -253,8 +322,8 @@ void admission_control(
 
     switch(fsmState){
         case 0:{
-            if(!sessionIdFifo.empty()){
-                ap_uint<16> sessionID = sessionIdFifo.read();
+            if(!sessionIdFifo_in.empty()){
+                ap_uint<16> sessionID = sessionIdFifo_in.read();
                 bool ret = stash_remove(sessionID);
                 std::cout << "remove sessionID = " << sessionID << std::endl;
                 if(!ret){
