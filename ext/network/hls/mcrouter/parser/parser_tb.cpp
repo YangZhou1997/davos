@@ -235,7 +235,7 @@ int main()
             currMsgBodyFifo.write(currMsgBody);
             allow_new_word = false;
 
-            cout << "sending a word" << endl;
+            cout << "==============================sending a word===================================" << endl;
         }
 
         if(!currSessionStateOutFifo.empty() && !currMsgBodyStateOutFifo.empty()){
@@ -254,7 +254,7 @@ int main()
             if(ops[msgCnt]){
                 cout << "val: " << vals[msgCnt] << endl;
             }
-            cout << "============================================================================" << endl;
+            cout << "==============================receive a msg===================================" << endl;
 
             msgCnt ++;
         }

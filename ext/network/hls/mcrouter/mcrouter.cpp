@@ -218,33 +218,87 @@ void notification_handler(
 
 #define MAX_SESSION_NUM ((1 << 16) - 1)
 
-// void admission_control(
-//     // input session and words from TCP engines
-//     hls::stream<ap_uint<16> >& rxMetaData, // input
-// 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
-//     // output session and words
-//     hls::stream<ap_uint<16> >& rxMetaDataOut, // output
-// 	hls::stream<net_axis<DATA_WIDTH> >& rxDataOut, // output
-//     // indicating session exit
-//     hls::stream<ap_uint<16> >& sessionIdFifo2 // input
-// ){
-// #pragma HLS PIPELINE II=1
-// #pragma HLS INLINE off
-//     // static value gets inited to zero by default. 
-//     // multile queues 
-//     // !!! how to store session words. 
-//     #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-//     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
+void state_recovery(
+	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
+    hls::stream<htUpdateReq>&     s_axis_upd_req, // output to parser_stateman
+    hls::stream<htLookupResp>&    m_axis_lup_rsp, // input from parser_stateman
+    hls::stream<htUpdateResp>&    m_axis_upd_rsp, // input from parser_stateman
+    hls::stream<ap_uint<16> >& sessionIdFifo // output to notify admission_control
+){
+    
+}
 
-//     ap_uint<4> fsmState = 0;
+#define NUM_WAITING_Q 2
+void admission_control(
+    hls::stream<ap_uint<16> >&          rxMetaData, // input
+	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
+    hls::stream<htLookupReq>&           s_axis_lup_req, // output
+    hls::stream<ap_uint<16> >&          sessionIdFifo, // input
+	hls::stream<net_axis<DATA_WIDTH> >& rxData_out // output
+){
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+    // static value gets inited to zero by default. 
+    // multile queues 
+    static std::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
+    #pragma HLS stream variable=sessionWaitingQueues[0] depth=64
+    #pragma HLS stream variable=sessionWaitingQueues[1] depth=64
+    
+    static std::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
+    #pragma HLS stream variable=wordWaitingQueues[0] depth=128
+    #pragma HLS stream variable=wordWaitingQueues[1] depth=128
+    
+    static ap_uint<4> fsmState = 0;
+    static ap_uint<16> hashIdx;
 
-//     switch(fsmState){
-//         case 0:{
-            
-//         }
-//     }
+    switch(fsmState){
+        case 0:{
+            if(!sessionIdFifo.empty()){
+                ap_uint<16> sessionID = sessionIdFifo.read();
+                bool ret = stash_remove(sessionID);
+                std::cout << "remove sessionID = " << sessionID << std::endl;
+                if(!ret){
+                    std::cout << "remove sessionID error" << std::endl;
+                }
+            }
+            else if(!rxMetaData.empty()){
+                ap_uint<16> sessionID = rxMetaData.read();
+                bool ret = stash_lookup(sessionID);
+                if(ret){
+                    hashIdx = sessionID & (NUM_WAITING_Q-1);
+                    sessionWaitingQueues[hashIdx].write(sessionID);
+                    fsmState = 1;
+                }
+                else{
+                    fsmState = 2;
+                    // forward sessionId and words to parser. 
+                }
+            }
+            break;
+        }
+        case 1:{
+            if(!rxData.empty()){
+                net_axis<DATA_WIDTH> currWord = rxData.read();
+                wordWaitingQueues[hashIdx].write(currWord);
+                if(currWord.last){
+                    fsmState = 0;
+                }
+            }
+            break;
+        }
+        case 2:{
+            if(!rxData.empty()){
+                net_axis<DATA_WIDTH> currWord = rxData.read();
+                rxData_out.write(currWord);
+                if(currWord.last){
+                    fsmState = 0;
+                }
+            }
+            break;
+        }
+    }
 
-// }
+}
 
 void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
     net_axis<DATA_WIDTH>& currWord, ap_uint<16>& currWordValidLen, ap_uint<16>& currWordValidLen_init){
@@ -992,6 +1046,8 @@ void mcrouter(
 #pragma HLS DATA_PACK variable=txMetaData
 #pragma HLS DATA_PACK variable=txStatus
 
+    // hls will infer it as registers
+    #pragma HLS ARRAY_PARTITION variable=stashTable complete
 
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo0("mc_sessionIdFifo0");
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo1("mc_sessionIdFifo1");
