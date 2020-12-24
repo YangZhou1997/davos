@@ -31,6 +31,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common.hpp"
 
 struct bodyExtState{
+    ap_uint<16> currSessionID;
     ap_uint<DATA_WIDTH> data;
     ap_uint<32> currWord_parsingPos;
     ap_uint<32> currWordValidLen;
@@ -39,6 +40,7 @@ struct bodyExtState{
     msgHeader   currMsgHeader;
     ap_uint<4>  lastMsgIndicator;
     bodyExtState(){
+        currSessionID = 0;
         data = 0;
         currWord_parsingPos = 0;
         currWordValidLen = 0;
@@ -47,9 +49,9 @@ struct bodyExtState{
         currMsgHeader.reset();
         lastMsgIndicator = 0;
     }
-    bodyExtState(ap_uint<DATA_WIDTH> data, ap_uint<32> currWord_parsingPos, ap_uint<32> currWordValidLen, 
+    bodyExtState(ap_uint<16> currSessionID, ap_uint<DATA_WIDTH> data, ap_uint<32> currWord_parsingPos, ap_uint<32> currWordValidLen, 
         ap_uint<32> currBodyLen, ap_uint<32> requiredBodyLen, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator): 
-        data(data), currWord_parsingPos(currWord_parsingPos), currWordValidLen(currWordValidLen), 
+        currSessionID(currSessionID), data(data), currWord_parsingPos(currWord_parsingPos), currWordValidLen(currWordValidLen), 
         currBodyLen(currBodyLen), requiredBodyLen(requiredBodyLen), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator) {}
 };
 
@@ -65,19 +67,49 @@ struct bodyExtState2{
 };
 
 struct bodyMergeState{
+    ap_uint<16> currSessionID;
     msgHeader   currMsgHeader;
     ap_uint<4>  lastMsgIndicator;
     ap_uint<32> startPos;
     ap_uint<32> length;
     bodyMergeState(){
+        currSessionID = 0;
         currMsgHeader.reset();
         lastMsgIndicator = 0;
         startPos = 0;
         length = 0;
     }
-    bodyMergeState(msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, ap_uint<32> startPos, ap_uint<32> length): 
-        currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), startPos(startPos), length(length){}
+    bodyMergeState(ap_uint<16> currSessionID, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, ap_uint<32> startPos, ap_uint<32> length): 
+        currSessionID(currSessionID), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), startPos(startPos), length(length){}
 };
+
+struct parser_stashEntry
+{
+    ap_uint<16> sessionID;
+    msgBody     msgbody;
+    bool        valid;
+    parser_stashEntry() {}
+    parser_stashEntry(ap_uint<16> sessionID, msgBody msgbody, bool valid)
+        : sessionID(sessionID), msgbody(msgbody), valid(valid) {}
+};
+
+struct parser_stashRet{
+    msgBody     msgbody;
+    bool        ret;
+    parser_stashRet(){
+        msgbody.reset();
+        ret = false;
+    }
+    parser_stashRet(msgBody msgbody, bool ret)
+        : msgbody(msgbody), ret(ret) {}
+};
+
+const uint32_t PARSER_STASH_SIZE = 34;
+static parser_stashEntry parser_stashTable[PARSER_STASH_SIZE];
+
+bool parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody);
+int parser_stash_lookup(ap_uint<16> sessionID);
+bool parser_stash_remove(ap_uint<16> sessionID);
 
 void parser(
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo,

@@ -152,6 +152,8 @@ struct sessionState {
     ap_uint<32>         requiredLen; // required length of header+body 
     ap_uint<8>			currHdrLen;
     ap_uint<32>			currBodyLen;
+
+    ap_uint<16>         currSessionID;
     
     sessionState() {
         msgHeaderBuff = 0;
@@ -160,6 +162,16 @@ struct sessionState {
         requiredLen = 0;
         currHdrLen = 0;
         currBodyLen = 0;
+        currSessionID = 0;
+    }
+    sessionState(ap_uint<16> _currSessionID) {
+        msgHeaderBuff = 0;
+        parsingHeaderState = 0;
+        parsingBodyState = 0;
+        requiredLen = 0;
+        currHdrLen = 0;
+        currBodyLen = 0;
+        currSessionID = _currSessionID;
     }
     void reset() {
         // msgHeaderBuff = 0;
@@ -170,6 +182,7 @@ struct sessionState {
         requiredLen = 0;
         currHdrLen = 0;
         currBodyLen = 0;
+        currSessionID = 0;
     }
 
     void display(){
@@ -178,6 +191,7 @@ struct sessionState {
         std::cout << "requiredLen " << std::dec << requiredLen << std::endl;
         std::cout << "currHdrLen " << std::dec << currHdrLen << std::endl;
         std::cout << "currBodyLen " << std::dec << currBodyLen << std::endl;
+        std::cout << "currSessionID " << std::dec << currSessionID << std::endl;
     }
 };
 

@@ -69,22 +69,22 @@ void ethernet_frame_padding_512(	hls::stream<net_axis<512> >&			dataIn,
 		if (!dataIn.empty())
 		{
 			net_axis<512> currWord = dataIn.read();
-         if (currWord.last)
-         {
-            for (int i = 0; i < 64; ++i)
-            {
-               #pragma HLS UNROLL
-               if (currWord.keep[i] == 0)
-               {
-                  currWord.keep[i] = 1;
-                  currWord.data(i*8+7, i*8) = 0;
-               }
-            }
-         }
-         else
-         {
-            state = 1;
-         }
+             if (currWord.last)
+             {
+                for (int i = 0; i < 64; ++i)
+                {
+                   #pragma HLS UNROLL
+                   if (currWord.keep[i] == 0)
+                   {
+                      currWord.keep[i] = 1;
+                      currWord.data(i*8+7, i*8) = 0;
+                   }
+                }
+             }
+             else
+             {
+                state = 1;
+             }
 			dataOut.write(currWord);
 		}
 		break;

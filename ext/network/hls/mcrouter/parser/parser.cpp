@@ -33,31 +33,34 @@ void bodyID(
     // the initial states before parsing this word
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_in,
+    hls::stream<ap_uint<32> >& currWordValidLen_initFifo_in,
     hls::stream<sessionState>& currSessionStateFifo_in,
     // the updated states to the next msgStripper iteration (via mux2to1)
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_inner,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_inner,
+    hls::stream<ap_uint<32> >& currWordValidLen_initFifo_inner,
     hls::stream<sessionState>& currSessionStateFifo_inner,
     // the states to bodyExtractor
-    hls::stream<bodyExtState>&   bodyExtractorStateFifo_out,
+    hls::stream<bodyExtState>& bodyExtractorStateFifo_out,
     // the output of the parser states
     hls::stream<sessionState>& currSessionStateFifo_out
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-    if(!currWordFifo_in.empty() && !currWordValidLenFifo_in.empty() && !currSessionStateFifo_in.empty()){
+    if(!currWordFifo_in.empty() && !currWordValidLenFifo_in.empty() && !currSessionStateFifo_in.empty() && !currWordValidLen_initFifo_in.empty()){
         cout << "==============================bodyID IDX =" << IDX << "===================================" << endl;
         ap_uint<32> currWordValidLen = currWordValidLenFifo_in.read();
+        ap_uint<32> currWordValidLen_init = currWordValidLen_initFifo_in.read();
         net_axis<DATA_WIDTH> currWord = currWordFifo_in.read();
         sessionState currSessionState = currSessionStateFifo_in.read();
+        ap_uint<16> currSessionID = currSessionState.currSessionID;
 
-        std::cout << "currSessionState: " << std::endl;
+        std::cout << "currSessionID" << currSessionID << " currSessionState: " << std::endl;
         currSessionState.display();
 
         msgHeader currMsgHeader;
 
-        ap_uint<32> currWordValidLen_init = keepToLen(currWord.keep);
         // in the begining of a word: currWordValidLen_init equals to currWordValidLen;
         ap_uint<32> currWord_parsingPos = DATA_WIDTH - (currWordValidLen_init - currWordValidLen)*8;
 
@@ -73,7 +76,7 @@ void bodyID(
 
                 std::cout << "bodyID lastMsgIndicator_bodyMerger.write(2)" << std::endl;
                 // lastMsgIndicator=2 indicating this is a partial msg header. 
-                bodyExtractorStateFifo_out.write(bodyExtState(currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, 2));
+                bodyExtractorStateFifo_out.write(bodyExtState(currSessionID, currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, 2));
             }
             else if(currWordValidLen == requiredHeaderLen){
                 currSessionState.msgHeaderBuff(requiredHeaderLen*8-1, 0) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-requiredHeaderLen*8);
@@ -92,7 +95,7 @@ void bodyID(
                 }
                 std::cout << "bodyID lastMsgIndicator_bodyMerger.write(" << 1 << ")" << std::endl;
                 // output to bodyExtractor, but bodyExtractor will just forward a zero body to bodyMerger, as we specify requiredBodyLen=0
-                bodyExtractorStateFifo_out.write(bodyExtState(currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, 1));
+                bodyExtractorStateFifo_out.write(bodyExtState(currSessionID, currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, 1));
                 
                 currWordValidLen = 0;
             }
@@ -120,7 +123,7 @@ void bodyID(
 
                     std::cout << "bodyID lastMsgIndicator_bodyMerger.write(" << (currWordValidLen <= requiredBodyLen) << ")" << std::endl;
                     // output to bodyExtractor, currWordValidLen <= requiredBodyLen means currWordValidLen==0;
-                    bodyExtractorStateFifo_out.write(bodyExtState(currWord.data, currWord_parsingPos, currWordValidLen, currBodyLen, requiredBodyLen, currMsgHeader, currWordValidLen <= requiredBodyLen));
+                    bodyExtractorStateFifo_out.write(bodyExtState(currSessionID, currWord.data, currWord_parsingPos, currWordValidLen, currBodyLen, requiredBodyLen, currMsgHeader, currWordValidLen <= requiredBodyLen));
 
                     if(currWordValidLen >= requiredBodyLen){
                         // currMsgBody.body(MAX_BODY_LEN-1, MAX_BODY_LEN-requiredBodyLen*8) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-requiredBodyLen*8);
@@ -138,7 +141,7 @@ void bodyID(
 
                     std::cout << "bodyID lastMsgIndicator_bodyMerger.write(" << (currWordValidLen == 0) << ")" << std::endl;
                     // output to bodyExtractor, but bodyExtractor will just forward a zero body to bodyMerger. 
-                    bodyExtractorStateFifo_out.write(bodyExtState(currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, currWordValidLen == 0));
+                    bodyExtractorStateFifo_out.write(bodyExtState(currSessionID, currWord.data, currWord_parsingPos, currWordValidLen, 0, 0, currMsgHeader, currWordValidLen == 0));
                 }
             }
         }
@@ -158,7 +161,7 @@ void bodyID(
             
             std::cout << "bodyID lastMsgIndicator_bodyMerger.write(" << (currWordValidLen <= requiredBodyLen) << ")" << std::endl;
             // output to bodyExtractor, currWordValidLen <= requiredBodyLen means currWordValidLen==0;
-            bodyExtractorStateFifo_out.write(bodyExtState(currWord.data, currWord_parsingPos, currWordValidLen, currBodyLen, requiredBodyLen, currMsgHeader, currWordValidLen <= requiredBodyLen));
+            bodyExtractorStateFifo_out.write(bodyExtState(currSessionID, currWord.data, currWord_parsingPos, currWordValidLen, currBodyLen, requiredBodyLen, currMsgHeader, currWordValidLen <= requiredBodyLen));
 
             if(currWordValidLen >= requiredBodyLen){
                 // currMsgBody.body(MAX_BODY_LEN-1-currBodyLen*8, MAX_BODY_LEN-currBodyLen*8-requiredBodyLen*8) = currWord.data(currWord_parsingPos-1, currWord_parsingPos-requiredBodyLen*8);
@@ -179,12 +182,13 @@ void bodyID(
         if(currWordValidLen > 0){
             currWordFifo_inner.write(currWord);
             currWordValidLenFifo_inner.write(currWordValidLen);
-            // write out brand new sessionState to next bodyID interation. 
-            currSessionStateFifo_inner.write(sessionState());
+            currWordValidLen_initFifo_inner.write(currWordValidLen_init);
+            // write out brand new sessionState to next bodyID iteration. 
+            currSessionStateFifo_inner.write(sessionState(currSessionID));
         }
         else if(currWordValidLen == 0){
             if(parsingMsgState){
-                currSessionStateFifo_out.write(sessionState());
+                currSessionStateFifo_out.write(sessionState(currSessionID));
             }
             else{
                 currSessionStateFifo_out.write(currSessionState);
@@ -209,7 +213,8 @@ void bodyExtractor(
     if(!bodyExtractorStateFifo_in.empty()){
         bodyExtState state = bodyExtractorStateFifo_in.read();
         
-        ap_uint<DATA_WIDTH> currWordData = state.data;
+        ap_uint<16> currSessionID = state.currSessionID;
+        ap_uint<DATA_WIDTH> currWordData = state.data; 
         ap_uint<32> currWord_parsingPos = state.currWord_parsingPos;
         ap_uint<32> currWordValidLen = state.currWordValidLen;
         ap_uint<32> currBodyLen = state.currBodyLen;
@@ -237,13 +242,14 @@ void bodyExtractor(
                 length = currWordValidLen*8;
             }
         }
-        bodyMergerStateFifo_out.write(bodyMergeState(currMsgHeader, lastMsgIndicator, startPos, length));
+        bodyMergerStateFifo_out.write(bodyMergeState(currSessionID, currMsgHeader, lastMsgIndicator, startPos, length));
         msgBodyFifo_bodyMerger.write(currMsgBody);
     }
 }
 
 template <int IDX, int W>
 void bodyMerger(
+    hls::stream<ap_uint<16> >& currSessionIDFifo_in,
     // external input msgbody state 
     hls::stream<msgBody>& currMsgBodyFifo_in,
     // states from body extractor
@@ -259,14 +265,23 @@ void bodyMerger(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
+    // these global state needs to be session-specific, if we want multiple words from different sessions mixed. 
     static ap_uint<4> fsmState = 0;
-    static msgBody lastMsgBody;
+    // static msgBody lastMsgBody;
+    #pragma HLS ARRAY_PARTITION variable=parser_stashTable complete
+    #pragma HLS DEPENDENCE variable=parser_stashTable inter false
 
     std::cout << "bodyMerger state=" << fsmState << std::endl;
     switch(fsmState){
         case 0: {
-            if(!currMsgBodyFifo_in.empty()){
-                lastMsgBody = currMsgBodyFifo_in.read();
+            // read currSessionID from currSessionIDFifo_in;
+            if(!currMsgBodyFifo_in.empty() && !currSessionIDFifo_in.empty()){
+                msgBody lastMsgBody = currMsgBodyFifo_in.read();
+                ap_uint<16> currSessionID = currSessionIDFifo_in.read();
+                bool ret = parser_stash_insert(currSessionID, lastMsgBody);
+                if(!ret){
+                    std::cout << "[ERROR] parser_stash_insert: currSessionID=" << currSessionID << std::endl;
+                }
                 fsmState = 1;
             }
             break;
@@ -274,16 +289,27 @@ void bodyMerger(
         case 1: {
             if(!bodyMergerStateFifo_in.empty() && !msgBodyFifo_in.empty()){
                 bodyMergeState state = bodyMergerStateFifo_in.read();
+                ap_uint<16> currSessionID = state.currSessionID; // use currSessionID to select lastMsgBody. 
                 msgHeader msgHeader = state.currMsgHeader;
                 ap_uint<4> lastMsgIndicator = state.lastMsgIndicator;
                 ap_uint<32> startPos = state.startPos;
                 ap_uint<32> length = state.length;
-                msgBody msgBody = msgBodyFifo_in.read();
+                msgBody partialMsgBody = msgBodyFifo_in.read();
+
+                msgBody lastMsgBody;
+                int slot = parser_stash_lookup(currSessionID);
+                if(slot != -1){
+                    lastMsgBody = parser_stashTable[slot].msgbody;
+                }
+                else{
+                    std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << currSessionID << std::endl;
+                }
 
                 std::cout << "bodyMerger: msgHeader.bodyLen = " << msgHeader.bodyLen << std::endl;
                 if(lastMsgIndicator == 2){// partial header in the end of the word
                     lastMsgBody.reset();
                     currMsgBodyFifo_out.write(lastMsgBody);
+                    parser_stashTable[slot].valid = false;
                     fsmState = 0;
                 }
                 else{
@@ -299,7 +325,7 @@ void bodyMerger(
                         }
                         else{
                             std::cout << "bodyMerger: startPos=" << startPos << "; length=" << length << std::endl;
-                            lastMsgBody.body(startPos-1, startPos-length) = msgBody.body(startPos-1, startPos-length);
+                            lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
                             if(MAX_BODY_LEN-startPos+length == msgHeader.bodyLen*8){
                                 msgBodyFifo_out.write(lastMsgBody);
                                 msgHeaderFifo_out.write(msgHeader);
@@ -307,9 +333,13 @@ void bodyMerger(
                         }
                     }
                     // parsed this word done. 
-                    if(lastMsgIndicator){
+                    if(lastMsgIndicator == 1){
                         currMsgBodyFifo_out.write(lastMsgBody);
+                        parser_stashTable[slot].valid = false;
                         fsmState = 0;
+                    }
+                    else{
+                        parser_stashTable[slot].msgbody = lastMsgBody;
                     }
                 }
             }
@@ -337,7 +367,9 @@ void msgStripper(
     // the initial states before parsing this word
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_in,
+    hls::stream<ap_uint<32> >& currWordValidLen_initFifo_in,
     hls::stream<sessionState>& currSessionStateFifo_in,
+    hls::stream<ap_uint<16> >& currSessionIDFifo_in,
     hls::stream<msgBody>& currMsgBodyFifo_in,
     // the output of the parser states
     hls::stream<sessionState>& currSessionStateFifo_out,
@@ -352,6 +384,8 @@ void msgStripper(
     #pragma HLS stream variable=currWordFifo_inner depth=8
     static hls::stream<ap_uint<32> > currWordValidLenFifo_inner;
     #pragma HLS stream variable=currWordValidLenFifo_inner depth=8
+    static hls::stream<ap_uint<32> > currWordValidLen_initFifo_inner;
+    #pragma HLS stream variable=currWordValidLen_initFifo_inner depth=8
     static hls::stream<sessionState> currSessionStateFifo_inner;
     #pragma HLS stream variable=currSessionStateFifo_inner depth=8
     #pragma HLS DATA_PACK variable=currSessionStateFifo_inner
@@ -360,6 +394,8 @@ void msgStripper(
     #pragma HLS stream variable=currWordFifo_in2 depth=8
     static hls::stream<ap_uint<32> > currWordValidLenFifo_in2;
     #pragma HLS stream variable=currWordValidLenFifo_in2 depth=8
+    static hls::stream<ap_uint<32> > currWordValidLen_initFifo_in2;
+    #pragma HLS stream variable=currWordValidLen_initFifo_in2 depth=8
     static hls::stream<sessionState> currSessionStateFifo_in2;
     #pragma HLS stream variable=currSessionStateFifo_in2 depth=8
     #pragma HLS DATA_PACK variable=currSessionStateFifo_in2
@@ -378,31 +414,42 @@ void msgStripper(
 
     mux2to1(currWordFifo_in, currWordFifo_inner, currWordFifo_in2);
     mux2to1(currWordValidLenFifo_in, currWordValidLenFifo_inner, currWordValidLenFifo_in2);
+    mux2to1(currWordValidLen_initFifo_in, currWordValidLen_initFifo_inner, currWordValidLen_initFifo_in2);
     mux2to1(currSessionStateFifo_in, currSessionStateFifo_inner, currSessionStateFifo_in2);
 
-    bodyID<IDX, W>(currWordFifo_in2, currWordValidLenFifo_in2, currSessionStateFifo_in2,
-        currWordFifo_inner, currWordValidLenFifo_inner, currSessionStateFifo_inner, 
+    bodyID<IDX, W>(currWordFifo_in2, currWordValidLenFifo_in2, currWordValidLen_initFifo_in2, currSessionStateFifo_in2,
+        currWordFifo_inner, currWordValidLenFifo_inner, currWordValidLen_initFifo_inner, currSessionStateFifo_inner, 
         bodyExtractorStateFifo, currSessionStateFifo_out);
     
     bodyExtractor<IDX, W>(bodyExtractorStateFifo, bodyMergerStateFifo, msgBodyFifo_bodyMerger);
 
-    bodyMerger<IDX, W>(currMsgBodyFifo_in, bodyMergerStateFifo, msgBodyFifo_bodyMerger, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+    bodyMerger<IDX, W>(currSessionIDFifo_in, currMsgBodyFifo_in, bodyMergerStateFifo, msgBodyFifo_bodyMerger, 
+        currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
 
 }
 
 void wordLen_fwd(
-    hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
+    hls::stream<net_axis<DATA_WIDTH> >& currWordFifo, // in
+    hls::stream<sessionState>&          currSessionStateFifo, // in
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_msgStripper,
-    hls::stream<ap_uint<32> >&          currWordValidLenFifo_msgStripper
+    hls::stream<ap_uint<32> >&          currWordValidLenFifo_msgStripper,
+    hls::stream<ap_uint<32> >&          currWordValidLen_initFifo_msgStripper, 
+    hls::stream<sessionState>&          currSessionStateFifo_msgStripper,
+    hls::stream<ap_uint<16> >&          currSessionIDFifo_msgStripper
+    
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-    if(!currWordFifo.empty()){
+    if(!currWordFifo.empty() && !currSessionStateFifo.empty()){
         net_axis<DATA_WIDTH> currWord = currWordFifo.read();
+        sessionState currSessionState = currSessionStateFifo.read();
         currWordFifo_msgStripper.write(currWord);
         ap_uint<32> wordLen = keepToLen(currWord.keep);
         currWordValidLenFifo_msgStripper.write(wordLen);
+        currWordValidLen_initFifo_msgStripper.write(wordLen);
+        currSessionStateFifo_msgStripper.write(currSessionState);
+        currSessionIDFifo_msgStripper.write(currSessionState.currSessionID);
     }
 }
 
@@ -425,12 +472,91 @@ void parser(
 
     static hls::stream<net_axis<DATA_WIDTH> > currWordFifo_msgStripper;
     #pragma HLS stream variable=currWordFifo_msgStripper depth=8
+    #pragma HLS DATA_PACK variable=currWordFifo_msgStripper
+
+    static hls::stream<sessionState>          currSessionStateFifo_msgStripper;
+    #pragma HLS stream variable=currSessionStateFifo_msgStripper depth=8
+    #pragma HLS DATA_PACK variable=currSessionStateFifo_msgStripper
+
+    static hls::stream<ap_uint<16> >          currSessionIDFifo_msgStripper;
+    #pragma HLS stream variable=currSessionIDFifo_msgStripper depth=8
 
     static hls::stream<ap_uint<32> >          currWordValidLenFifo_msgStripper;
     #pragma HLS stream variable=currWordValidLenFifo_msgStripper depth=8
+        
+    static hls::stream<ap_uint<32> >          currWordValidLen_initFifo_msgStripper;
+    #pragma HLS stream variable=currWordValidLen_initFifo_msgStripper depth=8
 
-    wordLen_fwd(currWordFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper);
+    wordLen_fwd(currWordFifo, currSessionStateFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper, 
+        currSessionStateFifo_msgStripper, currSessionIDFifo_msgStripper);
 
-    msgStripper<1, 0xa>(currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currSessionStateFifo, currMsgBodyFifo, 
-                        currSessionStateFifo_out, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+    msgStripper<1, 0xa>(currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper, 
+        currSessionStateFifo_msgStripper, currSessionIDFifo_msgStripper, 
+        currMsgBodyFifo, currSessionStateFifo_out, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+}
+
+
+bool parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody){
+#pragma HLS INLINE
+    bool ret = false;
+
+    int slot = -1;
+    for (int i = 0; i < PARSER_STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(!parser_stashTable[i].valid)
+        {
+            slot = i;
+        }
+    }
+    std::cout << "stash_insert slot = " << slot << std::endl;
+    if(slot != -1){
+        ret = true;
+        parser_stashTable[slot].sessionID = sessionID;
+        parser_stashTable[slot].msgbody = msgbody;
+        parser_stashTable[slot].valid = true;
+    }
+    return ret;
+}
+
+int parser_stash_lookup(ap_uint<16> sessionID){
+#pragma HLS INLINE
+    // parser_stashRet stashRet;
+
+    int slot = -1;
+    for (int i = 0; i < PARSER_STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(parser_stashTable[i].valid && parser_stashTable[i].sessionID == sessionID)
+        {
+            std::cout << "stash_lookup i = " << i << std::endl;
+            slot = i;
+        }
+    }
+    // if(slot != -1){
+    //     stashRet.ret = true;
+    //     stashRet.msgbody = parser_stashTable[slot].msgbody;
+    // }
+    return slot;
+}
+
+bool parser_stash_remove(ap_uint<16> sessionID){
+#pragma HLS INLINE
+    bool ret = false;
+
+    int slot = -1;
+    for (int i = 0; i < PARSER_STASH_SIZE; i++)
+    {
+        #pragma HLS UNROLL
+        if(parser_stashTable[i].valid && parser_stashTable[i].sessionID == sessionID)
+        {
+            std::cout << "stash_remove i = " << i << std::endl;
+            slot = i;
+        }
+    }
+    if(slot != -1){
+        parser_stashTable[slot].valid = false;
+        ret = true;
+    }
+    return ret;
 }
