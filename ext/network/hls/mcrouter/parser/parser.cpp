@@ -249,7 +249,6 @@ void bodyExtractor(
 
 template <int IDX, int W>
 void bodyMerger(
-    hls::stream<ap_uint<16> >& currSessionIDFifo_in,
     // external input msgbody state 
     hls::stream<msgBody>& currMsgBodyFifo_in,
     // states from body extractor
@@ -262,88 +261,83 @@ void bodyMerger(
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
-#pragma HLS PIPELINE II=1
+#pragma HLS PIPELINE II=2
 #pragma HLS INLINE off
 
+    // #pragma HLS ARRAY_PARTITION variable=parser_stashTable complete
+    // #pragma HLS DEPENDENCE variable=parser_stashTable inter false
+
+    #pragma HLS ARRAY_PARTITION variable=fsmState_stashTable complete
+    #pragma HLS ARRAY_PARTITION variable=sessionID_stashTable complete
+    #pragma HLS ARRAY_PARTITION variable=msgbody_stashTable complete
+
     // these global state needs to be session-specific, if we want multiple words from different sessions mixed. 
-    static ap_uint<4> fsmState = 0;
-    // static msgBody lastMsgBody;
-    #pragma HLS ARRAY_PARTITION variable=parser_stashTable complete
-    #pragma HLS DEPENDENCE variable=parser_stashTable inter false
 
-    std::cout << "bodyMerger state=" << fsmState << std::endl;
-    switch(fsmState){
-        case 0: {
-            // read currSessionID from currSessionIDFifo_in;
-            if(!currMsgBodyFifo_in.empty() && !currSessionIDFifo_in.empty()){
-                msgBody lastMsgBody = currMsgBodyFifo_in.read();
-                ap_uint<16> currSessionID = currSessionIDFifo_in.read();
-                bool ret = parser_stash_insert(currSessionID, lastMsgBody);
-                if(!ret){
-                    std::cout << "[ERROR] parser_stash_insert: currSessionID=" << currSessionID << std::endl;
-                }
-                fsmState = 1;
-            }
-            break;
+    
+    // filling up the intial states for this session;
+    if(!currMsgBodyFifo_in.empty()){
+        std::cout << "bodyMerger state=" << 0 << std::endl;
+        msgBody lastMsgBody = currMsgBodyFifo_in.read();
+        int slot = parser_stash_insert(lastMsgBody.currSessionID, lastMsgBody);
+        fsmState_stashTable[slot] = 1;
+    }
+    else if(!bodyMergerStateFifo_in.empty() && !msgBodyFifo_in.empty()){
+        std::cout << "bodyMerger state=" << 1 << std::endl;
+        bodyMergeState state = bodyMergerStateFifo_in.read();
+        ap_uint<16> currSessionID = state.currSessionID; // use currSessionID to select lastMsgBody. 
+        msgHeader msgHeader = state.currMsgHeader;
+        ap_uint<4> lastMsgIndicator = state.lastMsgIndicator;
+        ap_uint<32> startPos = state.startPos;
+        ap_uint<32> length = state.length;
+        msgBody partialMsgBody = msgBodyFifo_in.read();
+
+        int slot = parser_stash_lookup(currSessionID);
+#ifndef __SYNTHESIS__
+        if(fsmState_stashTable[slot] != 1){
+            std::cout << "[ERROR] fsmState_stashTable[slot], initial session states not set" << std::endl;
         }
-        case 1: {
-            if(!bodyMergerStateFifo_in.empty() && !msgBodyFifo_in.empty()){
-                bodyMergeState state = bodyMergerStateFifo_in.read();
-                ap_uint<16> currSessionID = state.currSessionID; // use currSessionID to select lastMsgBody. 
-                msgHeader msgHeader = state.currMsgHeader;
-                ap_uint<4> lastMsgIndicator = state.lastMsgIndicator;
-                ap_uint<32> startPos = state.startPos;
-                ap_uint<32> length = state.length;
-                msgBody partialMsgBody = msgBodyFifo_in.read();
+#endif
 
-                msgBody lastMsgBody;
-                int slot = parser_stash_lookup(currSessionID);
-                if(slot != -1){
-                    lastMsgBody = parser_stashTable[slot].msgbody;
-                }
-                else{
-                    std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << currSessionID << std::endl;
-                }
+        msgBody lastMsgBody;
+        lastMsgBody = msgbody_stashTable[slot];
 
-                std::cout << "bodyMerger: msgHeader.bodyLen = " << msgHeader.bodyLen << std::endl;
-                if(lastMsgIndicator == 2){// partial header in the end of the word
+        std::cout << "bodyMerger: msgHeader.bodyLen = " << msgHeader.bodyLen << std::endl;
+        if(lastMsgIndicator == 2){// partial header in the end of the word
+            lastMsgBody.reset();
+            currMsgBodyFifo_out.write(lastMsgBody);
+            valid_stashTable[slot] = 1;
+            fsmState_stashTable[slot] = 0;
+        }
+        else{
+            if(msgHeader.bodyLen == 0){ // message has no body
+                lastMsgBody.reset();
+                msgBodyFifo_out.write(lastMsgBody);
+                msgHeaderFifo_out.write(msgHeader);
+            }
+            else{
+                if(length == 0){// full header exactly in the end of the word
+                    std::cout << "bodyMerger: length=0" << std::endl;
                     lastMsgBody.reset();
-                    currMsgBodyFifo_out.write(lastMsgBody);
-                    parser_stashTable[slot].valid = false;
-                    fsmState = 0;
                 }
                 else{
-                    if(msgHeader.bodyLen == 0){ // message has no body
-                        lastMsgBody.reset();
+                    std::cout << "bodyMerger: startPos=" << startPos << "; length=" << length << std::endl;
+                    // lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
+                    lastMsgBody.body |= partialMsgBody.body;
+                    if(MAX_BODY_LEN-startPos+length == msgHeader.bodyLen*8){
                         msgBodyFifo_out.write(lastMsgBody);
                         msgHeaderFifo_out.write(msgHeader);
-                    }
-                    else{
-                        if(length == 0){// full header exactly in the end of the word
-                            std::cout << "bodyMerger: length=0" << std::endl;
-                            lastMsgBody.reset();
-                        }
-                        else{
-                            std::cout << "bodyMerger: startPos=" << startPos << "; length=" << length << std::endl;
-                            lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
-                            if(MAX_BODY_LEN-startPos+length == msgHeader.bodyLen*8){
-                                msgBodyFifo_out.write(lastMsgBody);
-                                msgHeaderFifo_out.write(msgHeader);
-                            }   
-                        }
-                    }
-                    // parsed this word done. 
-                    if(lastMsgIndicator == 1){
-                        currMsgBodyFifo_out.write(lastMsgBody);
-                        parser_stashTable[slot].valid = false;
-                        fsmState = 0;
-                    }
-                    else{
-                        parser_stashTable[slot].msgbody = lastMsgBody;
+                        lastMsgBody.reset();
                     }
                 }
             }
-            break;
+            // parsed this word done. 
+            if(lastMsgIndicator == 1){
+                currMsgBodyFifo_out.write(lastMsgBody);
+                valid_stashTable[slot] = 1;
+                fsmState_stashTable[slot] = 0;
+                lastMsgBody.reset();
+            }
+            msgbody_stashTable[slot] = lastMsgBody;
         }
     }
 }
@@ -369,7 +363,6 @@ void msgStripper(
     hls::stream<ap_uint<32> >& currWordValidLenFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLen_initFifo_in,
     hls::stream<sessionState>& currSessionStateFifo_in,
-    hls::stream<ap_uint<16> >& currSessionIDFifo_in,
     hls::stream<msgBody>& currMsgBodyFifo_in,
     // the output of the parser states
     hls::stream<sessionState>& currSessionStateFifo_out,
@@ -423,33 +416,27 @@ void msgStripper(
     
     bodyExtractor<IDX, W>(bodyExtractorStateFifo, bodyMergerStateFifo, msgBodyFifo_bodyMerger);
 
-    bodyMerger<IDX, W>(currSessionIDFifo_in, currMsgBodyFifo_in, bodyMergerStateFifo, msgBodyFifo_bodyMerger, 
+    bodyMerger<IDX, W>(currMsgBodyFifo_in, bodyMergerStateFifo, msgBodyFifo_bodyMerger, 
         currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
 
 }
 
 void wordLen_fwd(
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo, // in
-    hls::stream<sessionState>&          currSessionStateFifo, // in
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_msgStripper,
     hls::stream<ap_uint<32> >&          currWordValidLenFifo_msgStripper,
-    hls::stream<ap_uint<32> >&          currWordValidLen_initFifo_msgStripper, 
-    hls::stream<sessionState>&          currSessionStateFifo_msgStripper,
-    hls::stream<ap_uint<16> >&          currSessionIDFifo_msgStripper
+    hls::stream<ap_uint<32> >&          currWordValidLen_initFifo_msgStripper
     
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-    if(!currWordFifo.empty() && !currSessionStateFifo.empty()){
+    if(!currWordFifo.empty()){
         net_axis<DATA_WIDTH> currWord = currWordFifo.read();
-        sessionState currSessionState = currSessionStateFifo.read();
         currWordFifo_msgStripper.write(currWord);
         ap_uint<32> wordLen = keepToLen(currWord.keep);
         currWordValidLenFifo_msgStripper.write(wordLen);
         currWordValidLen_initFifo_msgStripper.write(wordLen);
-        currSessionStateFifo_msgStripper.write(currSessionState);
-        currSessionIDFifo_msgStripper.write(currSessionState.currSessionID);
     }
 }
 
@@ -469,17 +456,10 @@ void parser(
 ){
 #pragma HLS DATAFLOW disable_start_propagation
 #pragma HLS INTERFACE ap_ctrl_none port=return
-
+    
     static hls::stream<net_axis<DATA_WIDTH> > currWordFifo_msgStripper;
     #pragma HLS stream variable=currWordFifo_msgStripper depth=8
     #pragma HLS DATA_PACK variable=currWordFifo_msgStripper
-
-    static hls::stream<sessionState>          currSessionStateFifo_msgStripper;
-    #pragma HLS stream variable=currSessionStateFifo_msgStripper depth=8
-    #pragma HLS DATA_PACK variable=currSessionStateFifo_msgStripper
-
-    static hls::stream<ap_uint<16> >          currSessionIDFifo_msgStripper;
-    #pragma HLS stream variable=currSessionIDFifo_msgStripper depth=8
 
     static hls::stream<ap_uint<32> >          currWordValidLenFifo_msgStripper;
     #pragma HLS stream variable=currWordValidLenFifo_msgStripper depth=8
@@ -487,76 +467,83 @@ void parser(
     static hls::stream<ap_uint<32> >          currWordValidLen_initFifo_msgStripper;
     #pragma HLS stream variable=currWordValidLen_initFifo_msgStripper depth=8
 
-    wordLen_fwd(currWordFifo, currSessionStateFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper, 
-        currSessionStateFifo_msgStripper, currSessionIDFifo_msgStripper);
+    wordLen_fwd(currWordFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper);
 
     msgStripper<1, 0xa>(currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper, 
-        currSessionStateFifo_msgStripper, currSessionIDFifo_msgStripper, 
-        currMsgBodyFifo, currSessionStateFifo_out, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+        currSessionStateFifo, currMsgBodyFifo, currSessionStateFifo_out, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
 }
 
 
-bool parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody){
+int parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody){
 #pragma HLS INLINE
-    bool ret = false;
-
-    int slot = -1;
-    for (int i = 0; i < PARSER_STASH_SIZE; i++)
-    {
-        #pragma HLS UNROLL
-        if(!parser_stashTable[i].valid)
-        {
-            slot = i;
-        }
+    
+#ifndef __SYNTHESIS__
+    // this means no stash slot is available -- this should nevery happen. 
+    if(valid_stashTable == 0){
+        std::cout << "[ERROR] parser_stash_insert: currSessionID=" << sessionID << std::endl;
+        return -1;
     }
-    std::cout << "stash_insert slot = " << slot << std::endl;
-    if(slot != -1){
-        ret = true;
-        parser_stashTable[slot].sessionID = sessionID;
-        parser_stashTable[slot].msgbody = msgbody;
-        parser_stashTable[slot].valid = true;
+    else{
+#endif
+        int slot = __builtin_ctz(valid_stashTable);
+        std::cout << "stash_insert valid_stashTable = " << std::hex << valid_stashTable << " " << std::dec << slot << std::endl;
+        std::cout << "stash_insert slot = " << slot << std::endl;
+        sessionID_stashTable[slot] = sessionID;
+        msgbody_stashTable[slot] = msgbody;
+        valid_stashTable[slot] = 0;
+        return slot;
+#ifndef __SYNTHESIS__
     }
-    return ret;
+#endif
 }
 
 int parser_stash_lookup(ap_uint<16> sessionID){
 #pragma HLS INLINE
-    // parser_stashRet stashRet;
-
-    int slot = -1;
+    ap_uint<PARSER_STASH_SIZE> slot = 0;
+  
     for (int i = 0; i < PARSER_STASH_SIZE; i++)
     {
         #pragma HLS UNROLL
-        if(parser_stashTable[i].valid && parser_stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_lookup i = " << i << std::endl;
-            slot = i;
-        }
+        slot[i] = (!valid_stashTable[i] && sessionID_stashTable[i] == sessionID);
     }
-    // if(slot != -1){
-    //     stashRet.ret = true;
-    //     stashRet.msgbody = parser_stashTable[slot].msgbody;
-    // }
-    return slot;
+#ifndef __SYNTHESIS__
+    if(slot == 0){
+        // this should nevery happen. 
+        std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << sessionID << std::endl;
+        std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << sessionID << std::endl;
+        return -1;
+    }
+    else{
+#endif
+        slot = __builtin_ctz(slot);
+        std::cout << "stash_lookup valid_stashTable = " << std::hex << valid_stashTable << " " << std::dec << slot << std::endl;
+        return slot;
+#ifndef __SYNTHESIS__
+    }
+#endif
 }
 
 bool parser_stash_remove(ap_uint<16> sessionID){
 #pragma HLS INLINE
-    bool ret = false;
+    ap_uint<PARSER_STASH_SIZE> slot = 0;
 
-    int slot = -1;
     for (int i = 0; i < PARSER_STASH_SIZE; i++)
     {
         #pragma HLS UNROLL
-        if(parser_stashTable[i].valid && parser_stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_remove i = " << i << std::endl;
-            slot = i;
-        }
+        slot[i] = (!valid_stashTable[i] && sessionID_stashTable[i] == sessionID);
     }
-    if(slot != -1){
-        parser_stashTable[slot].valid = false;
-        ret = true;
+#ifndef __SYNTHESIS__
+    if(slot == 0){
+        // this should nevery happen. 
+        std::cout << "[ERROR] parser_stash_remove: currSessionID=" << sessionID << std::endl;
+        return false;
     }
-    return ret;
+    else{
+#endif
+        slot = __builtin_ctz(slot);
+        valid_stashTable[slot] = 1;
+        return true;
+#ifndef __SYNTHESIS__
+    }
+#endif
 }

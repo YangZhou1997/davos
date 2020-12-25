@@ -67,7 +67,7 @@ struct msgHeader {
     }
 };
 
-#define MAX_BODY_LEN (1024-35-48*3-5-8) // 832
+#define MAX_BODY_LEN (1024-35-48*3-16-1) // 828
 #define MAX_KEY_LEN (40*8)
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID
@@ -77,8 +77,8 @@ struct msgBody {
     ap_uint<48>                 extPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
-    ap_uint<5>                  reserved;
-    ap_uint<8>                  reserved2;
+    ap_uint<16>                 currSessionID;
+    ap_uint<1>                  reserved;
     ap_uint<MAX_BODY_LEN>       body;
     msgBody() {
         msgID = 0;
@@ -88,8 +88,20 @@ struct msgBody {
         extPtr = 0;
         keyPtr = 0;
         valPtr = 0;
+        currSessionID = 0;
         reserved = 0;
-        reserved2 = 0;
+        body = 0;
+    }
+    msgBody(ap_uint<16> _currSessionID) {
+        msgID = 0;
+        extInl = 0;
+        keyInl = 0;
+        valInl = 0;
+        extPtr = 0;
+        keyPtr = 0;
+        valPtr = 0;
+        currSessionID = _currSessionID;
+        reserved = 0;
         body = 0;
     }
     void consume_word(ap_uint<1024>& w){
@@ -100,12 +112,12 @@ struct msgBody {
         extPtr = w(988, 941);
         keyPtr = w(940, 893);
         valPtr = w(892, 845);
-        reserved = w(844, 840);
-        reserved2 = w(839, 832);
-        body = w(831, 0);
+        currSessionID = w(844, 829);
+        reserved = w(828, 828);
+        body = w(827, 0);
     }
     ap_uint<1024> output_word(){
-        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, reserved, reserved2, body);
+        return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, currSessionID, reserved, body);
     }
     void reset(){
         msgID = 0;
@@ -115,13 +127,14 @@ struct msgBody {
         extPtr = 0;
         keyPtr = 0;
         valPtr = 0;
+        // currSessionID = 0;
         reserved = 0;
-        reserved2 = 0;
         body = 0;
     }
 
     void display(uint32_t extlen, uint32_t keylen, uint32_t vallen){
         uint32_t pos = 0;
+        std::cout << "currSessionID: " << currSessionID << std::endl;
 
         std::cout << "ext: ";
         for(int i = 0; i < extlen; i++){

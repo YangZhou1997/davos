@@ -104,10 +104,17 @@ struct parser_stashRet{
         : msgbody(msgbody), ret(ret) {}
 };
 
-const uint32_t PARSER_STASH_SIZE = 34;
-static parser_stashEntry parser_stashTable[PARSER_STASH_SIZE];
+const uint32_t PARSER_STASH_SIZE = 33;
+// static parser_stashEntry parser_stashTable[PARSER_STASH_SIZE];
 
-bool parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody);
+static ap_uint<4> fsmState_stashTable[PARSER_STASH_SIZE];
+static ap_uint<16> sessionID_stashTable[PARSER_STASH_SIZE];
+static msgBody msgbody_stashTable[PARSER_STASH_SIZE];
+// static bool valid_stashTable[PARSER_STASH_SIZE];
+static ap_uint<PARSER_STASH_SIZE> valid_stashTable = ~(uint64_t)0;
+// 1 means available slot, 0 means occupied slot
+
+int parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody);
 int parser_stash_lookup(ap_uint<16> sessionID);
 bool parser_stash_remove(ap_uint<16> sessionID);
 

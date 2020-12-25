@@ -97,7 +97,7 @@ static vector<string> keys;
 static vector<string> vals;
 static vector<bool> ops;
 static map<string, string> kvMap;
-static queue<net_axis<DATA_WIDTH>> globalWords;
+static vector<net_axis<DATA_WIDTH>> globalWords;
 
 // 62 chars
 static const char* baseStr = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -192,10 +192,101 @@ void workload_gen(){
         currPos2 += pktlen;
 
         for(int j = 0; j < tmpWords.size(); j++){
-            globalWords.push(tmpWords[j]);
+            globalWords.push_back(tmpWords[j]);
         }
     }
     delete buf;
+}
+
+const uint16_t sessionID1 = 34567;
+const uint16_t sessionID2 = 45678;
+const uint16_t sessionID3 = 56789;
+
+int get_idx(uint16_t sessionID){
+    if(sessionID == sessionID1){
+        return 0;
+    }if(sessionID == sessionID2){
+        return 1;
+    }if(sessionID == sessionID3){
+        return 2;
+    }
+    else{
+        std::cout << "ERROR: get_idx" << std::endl;
+        return 0;
+    }
+}
+
+template <int W>
+void traffic_gen(
+    stream<net_axis<DATA_WIDTH> >&  currWordFifo,
+    stream<sessionState>&           currSessionStateFifo,
+    stream<msgBody>&                currMsgBodyFifo,
+    stream<sessionState>&           currSessionStateOutFifo, 
+    stream<msgBody>&                currMsgBodyStateOutFifo, 
+    stream<msgHeader>&              msgHeaderOutFifo, 
+    stream<msgBody>&                msgBodyOutFifo
+){
+    static sessionState currSessionState[3] = {sessionState(sessionID1), sessionState(sessionID2), sessionState(sessionID3)};
+    static msgBody currMsgBody[3] = {msgBody(sessionID1), msgBody(sessionID2), msgBody(sessionID3)};
+
+    static int msgCnt[3] = {0, 0, 0};
+    static bool allow_new_word[3] = {true, true, true};
+    static uint32_t wordCnt[3] = {0, 0, 0};
+    
+
+    int sidx = rand() % 3;
+    // workload empty
+    if(wordCnt[sidx] < globalWords.size() && allow_new_word[sidx]){
+        net_axis<DATA_WIDTH> currWord = globalWords[wordCnt[sidx]++];
+
+        currWordFifo.write(currWord);
+        currSessionStateFifo.write(currSessionState[sidx]);
+        currMsgBodyFifo.write(currMsgBody[sidx]);
+        allow_new_word[sidx] = false;
+
+        cout << "==============================sending a word===================================" << endl;
+    }
+
+    if(!currSessionStateOutFifo.empty() && !currMsgBodyStateOutFifo.empty()){
+        sessionState tmp = currSessionStateOutFifo.read();
+        int sidx = get_idx(tmp.currSessionID);
+        currSessionState[sidx] = tmp;
+        currMsgBody[sidx] = currMsgBodyStateOutFifo.read();
+        allow_new_word[sidx] = true;
+    }
+
+    if(!msgHeaderOutFifo.empty() && !msgBodyOutFifo.empty()){
+        msgHeader outMsgHeader = msgHeaderOutFifo.read();
+        msgBody outMsgBody = msgBodyOutFifo.read();
+        int sidx = get_idx(outMsgBody.currSessionID);
+
+        outMsgHeader.display();
+        outMsgBody.display(outMsgHeader.extLen, outMsgHeader.keyLen, outMsgHeader.val_len());
+        cout << "correct msg: " << endl;
+        cout << "key: " << keys[msgCnt[sidx]] << endl;
+        if(ops[msgCnt[sidx]]){
+            cout << "val: " << vals[msgCnt[sidx]] << endl;
+        }
+        cout << "==============================receive a msg===================================" << endl;
+
+        msgCnt[sidx] ++;
+    }
+}
+
+template <class T>
+void mux3to1(stream<T>& in1, stream<T>& in2, stream<T>& in3, stream<T>& out){
+    if(!in1.empty()){
+        T tmp = in1.read();
+        out.write(tmp);
+    }
+    else if(!in2.empty()){
+        T tmp = in2.read();
+        out.write(tmp);
+    }
+    else if(!in3.empty()){
+        T tmp = in3.read();
+        out.write(tmp);
+    }
 }
 
 int main()
@@ -210,54 +301,15 @@ int main()
     
     workload_gen();
 
-    net_axis<DATA_WIDTH> currWord;
-    sessionState currSessionState = sessionState();
-    msgBody currMsgBody = msgBody();
-
-    msgHeader outMsgHeader;
-    msgBody outMsgBody;
-
     int cycleCount = 0;
-    int msgCnt = 0;
-    bool allow_new_word = true;
 
+    
     while(cycleCount < 1000){
         parser(currWordFifo, currSessionStateFifo, currMsgBodyFifo, 
             currSessionStateOutFifo, currMsgBodyStateOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
-
-        // workload empty
-        if(globalWords.size() != 0 && allow_new_word){
-            net_axis<DATA_WIDTH> currWord = globalWords.front();
-            globalWords.pop();
-
-            currWordFifo.write(currWord);
-            currSessionStateFifo.write(currSessionState);
-            currMsgBodyFifo.write(currMsgBody);
-            allow_new_word = false;
-
-            cout << "==============================sending a word===================================" << endl;
-        }
-
-        if(!currSessionStateOutFifo.empty() && !currMsgBodyStateOutFifo.empty()){
-            currSessionState = currSessionStateOutFifo.read();
-            currMsgBody = currMsgBodyStateOutFifo.read();
-            allow_new_word = true;
-        }
-
-        if(!msgHeaderOutFifo.empty() && !msgBodyOutFifo.empty()){
-            outMsgHeader = msgHeaderOutFifo.read();
-            outMsgBody = msgBodyOutFifo.read();
-            outMsgHeader.display();
-            outMsgBody.display(outMsgHeader.extLen, outMsgHeader.keyLen, outMsgHeader.val_len());
-            cout << "correct msg: " << endl;
-            cout << "key: " << keys[msgCnt] << endl;
-            if(ops[msgCnt]){
-                cout << "val: " << vals[msgCnt] << endl;
-            }
-            cout << "==============================receive a msg===================================" << endl;
-
-            msgCnt ++;
-        }
+        traffic_gen<1>(currWordFifo, currSessionStateFifo, currMsgBodyFifo, 
+            currSessionStateOutFifo, currMsgBodyStateOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
+        
         cycleCount ++;
     }
 }
