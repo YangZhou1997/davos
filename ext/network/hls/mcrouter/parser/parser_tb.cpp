@@ -273,22 +273,6 @@ void traffic_gen(
     }
 }
 
-template <class T>
-void mux3to1(stream<T>& in1, stream<T>& in2, stream<T>& in3, stream<T>& out){
-    if(!in1.empty()){
-        T tmp = in1.read();
-        out.write(tmp);
-    }
-    else if(!in2.empty()){
-        T tmp = in2.read();
-        out.write(tmp);
-    }
-    else if(!in3.empty()){
-        T tmp = in3.read();
-        out.write(tmp);
-    }
-}
-
 int main()
 {
     stream<net_axis<DATA_WIDTH> >     currWordFifo;

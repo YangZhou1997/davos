@@ -217,67 +217,75 @@ void notification_handler(
 }
 
 #define MAX_SESSION_NUM ((1 << 16) - 1)
-bool stash_insert(ap_uint<16> sessionID){
+int ac_stash_insert(ap_uint<16> sessionID){
 #pragma HLS INLINE
-    bool response = false;
-
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
-    {
-        #pragma HLS UNROLL
-        if(!stashTable[i].valid)
-        {
-            slot = i;
-        }
+#ifndef __SYNTHESIS__
+    // this means no stash slot is available -- this should nevery happen. 
+    if(ac_valid_stashTable == 0){
+        std::cout << "[ERROR] ac_stash_insert: currSessionID=" << sessionID << std::endl;
+        return -1;
     }
-    std::cout << "stash_insert slot = " << slot << std::endl;
-    if(slot != -1){
-        response = true;
-        stashTable[slot].sessionID = sessionID;
-        stashTable[slot].valid = true;
+    else{
+#endif
+        int slot = __builtin_ctz(ac_valid_stashTable);
+        std::cout << "stash_insert ac_valid_stashTable = " << std::hex << ac_valid_stashTable << " " << std::dec << slot << std::endl;
+        std::cout << "stash_insert slot = " << slot << std::endl;
+        ac_sessionID_stashTable[slot] = sessionID;
+        ac_valid_stashTable[slot] = 0;
+        return slot;
+#ifndef __SYNTHESIS__
     }
-    return response;
+#endif
 }
 
-bool stash_lookup(ap_uint<16> sessionID){
+int ac_stash_lookup(ap_uint<16> sessionID){
 #pragma HLS INLINE
-    bool response = false;
-
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
+    ap_uint<AC_STASH_SIZE> slot = 0;
+  
+    for (int i = 0; i < AC_STASH_SIZE; i++)
     {
         #pragma HLS UNROLL
-        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_lookup i = " << i << std::endl;
-            slot = i;
-        }
+        slot[i] = (!ac_valid_stashTable[i] && ac_sessionID_stashTable[i] == sessionID);
     }
-    if(slot != -1){
-        response = true;
+#ifndef __SYNTHESIS__
+    if(slot == 0){
+        // this should nevery happen. 
+        std::cout << "[ERROR] ac_stash_lookup: currSessionID=" << sessionID << std::endl;
+        return -1;
     }
-    return response;
+    else{
+#endif
+        slot = __builtin_ctz(slot);
+        std::cout << "stash_lookup ac_valid_stashTable = " << std::hex << ac_valid_stashTable << " " << std::dec << slot << std::endl;
+        return slot;
+#ifndef __SYNTHESIS__
+    }
+#endif
 }
 
-bool stash_remove(ap_uint<16> sessionID){
+bool ac_stash_remove(ap_uint<16> sessionID){
 #pragma HLS INLINE
-    bool response = false;
+    ap_uint<AC_STASH_SIZE> slot = 0;
 
-    int slot = -1;
-    for (int i = 0; i < STASH_SIZE; i++)
+    for (int i = 0; i < AC_STASH_SIZE; i++)
     {
         #pragma HLS UNROLL
-        if(stashTable[i].valid && stashTable[i].sessionID == sessionID)
-        {
-            std::cout << "stash_remove i = " << i << std::endl;
-            slot = i;
-        }
+        slot[i] = (!ac_valid_stashTable[i] && ac_sessionID_stashTable[i] == sessionID);
     }
-    if(slot != -1){
-        stashTable[slot].valid = false;
-        response = true;
+#ifndef __SYNTHESIS__
+    if(slot == 0){
+        // this should nevery happen. 
+        std::cout << "[ERROR] ac_stash_remove: currSessionID=" << sessionID << std::endl;
+        return false;
     }
-    return response;
+    else{
+#endif
+        slot = __builtin_ctz(slot);
+        ac_valid_stashTable[slot] = 1;
+        return true;
+#ifndef __SYNTHESIS__
+    }
+#endif
 }
 
 void state_recovery(
@@ -295,9 +303,16 @@ void state_recovery(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
+    // multiple waiting queues here. 
 }
 
-#define NUM_WAITING_Q 2
+const uint32_t NUM_WAITING_Q = 2;
+const uint32_t BITS_WAITING_Q = parser_ConstLog2(NUM_WAITING_Q);
+
+// multile queues 
+static hls::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
+static hls::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
+
 void admission_control(
     hls::stream<ap_uint<16> >&          rxMetaData, // input
 	hls::stream<net_axis<DATA_WIDTH> >& rxData, // intput 
@@ -307,13 +322,12 @@ void admission_control(
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
+    #pragma HLS ARRAY_PARTITION variable=ac_sessionID_stashTable complete
+
     // static value gets inited to zero by default. 
-    // multile queues 
-    static hls::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
     #pragma HLS stream variable=sessionWaitingQueues[0] depth=64
     #pragma HLS stream variable=sessionWaitingQueues[1] depth=64
     
-    static hls::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
     #pragma HLS stream variable=wordWaitingQueues[0] depth=128
     #pragma HLS stream variable=wordWaitingQueues[1] depth=128
     
@@ -324,24 +338,14 @@ void admission_control(
         case 0:{
             if(!sessionIdFifo_in.empty()){
                 ap_uint<16> sessionID = sessionIdFifo_in.read();
-                bool ret = stash_remove(sessionID);
+                bool ret = ac_stash_remove(sessionID);
                 std::cout << "remove sessionID = " << sessionID << std::endl;
-                if(!ret){
-                    std::cout << "remove sessionID error" << std::endl;
-                }
             }
             else if(!rxMetaData.empty()){
                 ap_uint<16> sessionID = rxMetaData.read();
-                bool ret = stash_lookup(sessionID);
-                if(ret){
-                    hashIdx = sessionID & (NUM_WAITING_Q-1);
-                    sessionWaitingQueues[hashIdx].write(sessionID);
-                    fsmState = 1;
-                }
-                else{
-                    fsmState = 2;
-                    // forward sessionId and words to parser. 
-                }
+                hashIdx = sessionID & (NUM_WAITING_Q-1);
+                sessionWaitingQueues[hashIdx].write(sessionID);
+                fsmState = 1;
             }
             break;
         }
@@ -355,18 +359,61 @@ void admission_control(
             }
             break;
         }
+    }
+}
+void admission_control2(
+    hls::stream<parser_htLookupReq>&    s_axis_lup_req, // output
+	hls::stream<net_axis<DATA_WIDTH> >& rxData_out // output
+){
+#pragma HLS PIPELINE II=1
+#pragma HLS INLINE off
+    // bool vlds[NUM_WAITING_Q];
+    // #pragma HLS ARRAY_PARTITION variable=vlds complete
+
+    static ap_uint<BITS_WAITING_Q> startPos = 0;
+    static ap_uint<4> fsmState = 0;
+    static uint32_t slot = 0;
+
+    switch(fsmState){
+        case 0:{
+            ap_uint<NUM_WAITING_Q> vlds = 0;
+            for(int i = 0; i < NUM_WAITING_Q; i++){
+                #pragma HLS UNROLL
+                vlds[i] = (!sessionWaitingQueues[i].empty() && !wordWaitingQueues[i].empty());
+            }
+
+            ap_uint<NUM_WAITING_Q*2> vldsDual = (vlds, vlds);
+            vldsDual >>= startPos;
+            ap_uint<NUM_WAITING_Q> vldsSingle = vldsDual;
+
+            if(vldsSingle == 0){
+                std::cout << "admission_control2: no valid fifo" << std::endl;
+            }
+            else{
+                slot = __builtin_ctz(vldsSingle);
+                slot += startPos;
+                slot -= NUM_WAITING_Q;
+                fsmState = 1;
+            }
+            startPos += 1;
+            break;
+        }
+        case 1:{
+            ap_uint<16> currSessionID = sessionWaitingQueues[slot].read();
+            s_axis_lup_req.write(parser_htLookupReq(currSessionID, 0));
+            fsmState = 2;
+            break;
+        }
         case 2:{
-            if(!rxData.empty()){
-                net_axis<DATA_WIDTH> currWord = rxData.read();
+            if(!wordWaitingQueues[slot].empty()){
+                net_axis<DATA_WIDTH> currWord = wordWaitingQueues[slot].read();
                 rxData_out.write(currWord);
                 if(currWord.last){
                     fsmState = 0;
                 }
             }
-            break;
         }
     }
-
 }
 
 void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \

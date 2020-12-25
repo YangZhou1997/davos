@@ -72,47 +72,28 @@ struct bodyMergeState{
     ap_uint<4>  lastMsgIndicator;
     ap_uint<32> startPos;
     ap_uint<32> length;
+    ap_uint<1>  endOfBody;
     bodyMergeState(){
         currSessionID = 0;
         currMsgHeader.reset();
         lastMsgIndicator = 0;
         startPos = 0;
         length = 0;
+        endOfBody = 0;
     }
-    bodyMergeState(ap_uint<16> currSessionID, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, ap_uint<32> startPos, ap_uint<32> length): 
-        currSessionID(currSessionID), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), startPos(startPos), length(length){}
+    bodyMergeState(ap_uint<16> currSessionID, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, 
+        ap_uint<32> startPos, ap_uint<32> length, ap_uint<1> endOfBody): 
+        currSessionID(currSessionID), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), 
+        startPos(startPos), length(length), endOfBody(endOfBody) {}
 };
 
-struct parser_stashEntry
-{
-    ap_uint<16> sessionID;
-    msgBody     msgbody;
-    bool        valid;
-    parser_stashEntry() {}
-    parser_stashEntry(ap_uint<16> sessionID, msgBody msgbody, bool valid)
-        : sessionID(sessionID), msgbody(msgbody), valid(valid) {}
-};
-
-struct parser_stashRet{
-    msgBody     msgbody;
-    bool        ret;
-    parser_stashRet(){
-        msgbody.reset();
-        ret = false;
-    }
-    parser_stashRet(msgBody msgbody, bool ret)
-        : msgbody(msgbody), ret(ret) {}
-};
-
-const uint32_t PARSER_STASH_SIZE = 33;
-// static parser_stashEntry parser_stashTable[PARSER_STASH_SIZE];
+const uint32_t PARSER_STASH_SIZE = 34;
 
 static ap_uint<4> fsmState_stashTable[PARSER_STASH_SIZE];
 static ap_uint<16> sessionID_stashTable[PARSER_STASH_SIZE];
 static msgBody msgbody_stashTable[PARSER_STASH_SIZE];
-// static bool valid_stashTable[PARSER_STASH_SIZE];
-static ap_uint<PARSER_STASH_SIZE> valid_stashTable = ~(uint64_t)0;
 // 1 means available slot, 0 means occupied slot
+static ap_uint<PARSER_STASH_SIZE> valid_stashTable = ~(uint64_t)0;
 
 int parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody);
 int parser_stash_lookup(ap_uint<16> sessionID);

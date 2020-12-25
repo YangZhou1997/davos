@@ -28,15 +28,21 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.// Copyright (c) 2015 Xilinx, 
 ************************************************/
 #include "fsmtest.hpp"
 
-void set_input(hls::stream<ap_uint<16> >& input){
+void set_input(hls::stream<ap_uint<64> >& input, hls::stream<ap_uint<16> >& input1){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
     static ap_uint<1> inputState = 0;
-    static ap_uint<32> cnt = 0;
     switch(inputState){
         case 0:{
-            input.write(cnt++);
+            input.write(0xdeadbeefdeadbeef);
+            input1.write(32);
+            inputState = 1;
+            break;
+        }
+        case 1: {
+            input.write(0xbeefdeadbeefdead);
+            input1.write(48);
             inputState = 0;
             break;
         }
@@ -54,15 +60,16 @@ void read_output(hls::stream<ap_uint<16> >& output){
 
 int main()
 {
-	static hls::stream<ap_uint<16> > input("input");
+	static hls::stream<ap_uint<64> > input("input");
+	static hls::stream<ap_uint<16> > input1("input1");
 	static hls::stream<ap_uint<16> > output("output");
 
 
 	int count = 0;
-	while (count < 200)
+	while (count < 20)
 	{
-		fsmtest(input, output);
-        set_input(input);
+		fsmtest(input, input1, output);
+        set_input(input, input1);
         read_output(output);
         
         count++;

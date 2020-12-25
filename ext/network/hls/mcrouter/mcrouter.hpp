@@ -63,21 +63,13 @@ struct msgContext {
     }
 };
 
-struct stashEntry
-{
-    ap_uint<16> sessionID;
-    bool        valid;
-    stashEntry() {}
-    stashEntry(ap_uint<16> sessionID, bool valid)
-        : sessionID(sessionID), valid(valid) {}
-};
+const uint32_t AC_STASH_SIZE = 34;
+static ap_uint<PARSER_STASH_SIZE> ac_valid_stashTable = ~(uint64_t)0;
+static ap_uint<16> ac_sessionID_stashTable[AC_STASH_SIZE];
 
-const uint32_t STASH_SIZE = 8;
-static stashEntry stashTable[STASH_SIZE];
-
-bool stash_insert(ap_uint<16> sessionID);
-bool stash_lookup(ap_uint<16> sessionID);
-bool stash_remove(ap_uint<16> sessionID);
+int ac_stash_insert(ap_uint<16> sessionID);
+int ac_stash_lookup(ap_uint<16> sessionID);
+bool ac_stash_remove(ap_uint<16> sessionID);
 
 /** @defgroup mcrouter Echo Server Application
  *

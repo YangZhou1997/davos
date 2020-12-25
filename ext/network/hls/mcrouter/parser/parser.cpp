@@ -226,6 +226,7 @@ void bodyExtractor(
         msgBody currMsgBody = msgBody();
         ap_uint<32> startPos;
         ap_uint<32> length;
+        ap_uint<1> endOfBody = 0;
         if(requiredBodyLen == 0){ // either the msg does not have body, the full msg hdr exactly in the end of the word, or the partial msg hdr in the end
             startPos = MAX_BODY_LEN;
             length = 0;
@@ -241,8 +242,9 @@ void bodyExtractor(
                 startPos = MAX_BODY_LEN-currBodyLen*8;
                 length = currWordValidLen*8;
             }
+            endOfBody = (MAX_BODY_LEN-startPos+length == currMsgHeader.bodyLen*8);
         }
-        bodyMergerStateFifo_out.write(bodyMergeState(currSessionID, currMsgHeader, lastMsgIndicator, startPos, length));
+        bodyMergerStateFifo_out.write(bodyMergeState(currSessionID, currMsgHeader, lastMsgIndicator, startPos, length, endOfBody));
         msgBodyFifo_bodyMerger.write(currMsgBody);
     }
 }
@@ -261,7 +263,7 @@ void bodyMerger(
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
-#pragma HLS PIPELINE II=2
+#pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
     // #pragma HLS ARRAY_PARTITION variable=parser_stashTable complete
@@ -285,10 +287,11 @@ void bodyMerger(
         std::cout << "bodyMerger state=" << 1 << std::endl;
         bodyMergeState state = bodyMergerStateFifo_in.read();
         ap_uint<16> currSessionID = state.currSessionID; // use currSessionID to select lastMsgBody. 
-        msgHeader msgHeader = state.currMsgHeader;
+        msgHeader currMsgHeader = state.currMsgHeader;
         ap_uint<4> lastMsgIndicator = state.lastMsgIndicator;
         ap_uint<32> startPos = state.startPos;
         ap_uint<32> length = state.length;
+        ap_uint<1> endOfBody = state.endOfBody;
         msgBody partialMsgBody = msgBodyFifo_in.read();
 
         int slot = parser_stash_lookup(currSessionID);
@@ -298,10 +301,9 @@ void bodyMerger(
         }
 #endif
 
-        msgBody lastMsgBody;
-        lastMsgBody = msgbody_stashTable[slot];
+        msgBody lastMsgBody = msgbody_stashTable[slot];
 
-        std::cout << "bodyMerger: msgHeader.bodyLen = " << msgHeader.bodyLen << std::endl;
+        std::cout << "bodyMerger: currMsgHeader.bodyLen = " << currMsgHeader.bodyLen << std::endl;
         if(lastMsgIndicator == 2){// partial header in the end of the word
             lastMsgBody.reset();
             currMsgBodyFifo_out.write(lastMsgBody);
@@ -309,10 +311,10 @@ void bodyMerger(
             fsmState_stashTable[slot] = 0;
         }
         else{
-            if(msgHeader.bodyLen == 0){ // message has no body
+            if(currMsgHeader.bodyLen == 0){ // message has no body
                 lastMsgBody.reset();
                 msgBodyFifo_out.write(lastMsgBody);
-                msgHeaderFifo_out.write(msgHeader);
+                msgHeaderFifo_out.write(currMsgHeader);
             }
             else{
                 if(length == 0){// full header exactly in the end of the word
@@ -323,9 +325,9 @@ void bodyMerger(
                     std::cout << "bodyMerger: startPos=" << startPos << "; length=" << length << std::endl;
                     // lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
                     lastMsgBody.body |= partialMsgBody.body;
-                    if(MAX_BODY_LEN-startPos+length == msgHeader.bodyLen*8){
+                    if(endOfBody){
                         msgBodyFifo_out.write(lastMsgBody);
-                        msgHeaderFifo_out.write(msgHeader);
+                        msgHeaderFifo_out.write(currMsgHeader);
                         lastMsgBody.reset();
                     }
                 }
@@ -476,7 +478,6 @@ void parser(
 
 int parser_stash_insert(ap_uint<16> sessionID, msgBody msgbody){
 #pragma HLS INLINE
-    
 #ifndef __SYNTHESIS__
     // this means no stash slot is available -- this should nevery happen. 
     if(valid_stashTable == 0){
@@ -509,7 +510,6 @@ int parser_stash_lookup(ap_uint<16> sessionID){
 #ifndef __SYNTHESIS__
     if(slot == 0){
         // this should nevery happen. 
-        std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << sessionID << std::endl;
         std::cout << "[ERROR] parser_stash_lookup: currSessionID=" << sessionID << std::endl;
         return -1;
     }
