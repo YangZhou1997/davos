@@ -107,15 +107,22 @@ void test_out(hls::stream<ap_uint<16> >& output){
                 ap_uint<NUM_WAITING_Q*2> vldsDual = (vlds, vlds);
                 vldsDual >>= startPos;
                 ap_uint<NUM_WAITING_Q> vldsSingle = vldsDual;
-                // std::cout << "vldsSingle = " << vldsSingle << std::endl;
+                std::cout << "vldsSingle = " << std::hex << vldsSingle << std::dec << std::endl;
+
 
                 slot = __builtin_ctz(vldsSingle);
-                if(slot < startPos){
-                    slot = NUM_WAITING_Q - (startPos - slot);
+                // std::cout << "Before" << std::endl;
+                // std::cout << "fsmState = " << fsmState << std::endl;
+                // std::cout << "startPos = " << startPos << std::endl;
+                // std::cout << "slot = " << slot << std::endl;
+                ap_uint<BITS_WAITING_Q> rem = NUM_WAITING_Q - startPos;
+                if(slot < rem){
+                    slot = slot + startPos;
                 }
                 else{
-                    slot = slot - startPos;
+                    slot = slot - rem;
                 }
+                // std::cout << "After" << std::endl;
                 // std::cout << "fsmState = " << fsmState << std::endl;
                 // std::cout << "startPos = " << startPos << std::endl;
                 // std::cout << "slot = " << slot << std::endl;

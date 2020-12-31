@@ -449,7 +449,7 @@ void parser(
     // the external states before parsing this word
     hls::stream<sessionState>& currSessionStateFifo,
     hls::stream<msgBody>& currMsgBodyFifo,
-    // the updated states after parsing this word
+    // the updated states after parsing this word -- note these two might be out of order
     hls::stream<sessionState>& currSessionStateFifo_out,
     hls::stream<msgBody>& currMsgBodyFifo_out,
     // the output of the parsed msg

@@ -64,12 +64,20 @@ struct msgContext {
 };
 
 const uint32_t AC_STASH_SIZE = 34;
-static ap_uint<PARSER_STASH_SIZE> ac_valid_stashTable = ~(uint64_t)0;
+static ap_uint<AC_STASH_SIZE> ac_valid_stashTable = ~(uint64_t)0;
 static ap_uint<16> ac_sessionID_stashTable[AC_STASH_SIZE];
 
 int ac_stash_insert(ap_uint<16> sessionID);
 int ac_stash_lookup(ap_uint<16> sessionID);
 bool ac_stash_remove(ap_uint<16> sessionID);
+
+const uint32_t SR_STASH_SIZE = 34;
+static ap_uint<SR_STASH_SIZE> sr_valid_stashTable = ~(uint64_t)0;
+static ap_uint<16> sr_sessionID_stashTable[SR_STASH_SIZE];
+
+int sr_stash_insert(ap_uint<16> sessionID);
+int sr_stash_lookup(ap_uint<16> sessionID);
+bool sr_stash_remove(ap_uint<16> sessionID);
 
 /** @defgroup mcrouter Echo Server Application
  *
