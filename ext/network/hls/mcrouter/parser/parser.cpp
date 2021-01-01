@@ -260,6 +260,7 @@ void bodyMerger(
     // external output msgbody state
     hls::stream<msgBody>& currMsgBodyFifo_out, 
     // final msg output
+    hls::stream<ap_uint<16> >& sessionIDFifo_out,
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
@@ -315,6 +316,7 @@ void bodyMerger(
                 lastMsgBody.reset();
                 msgBodyFifo_out.write(lastMsgBody);
                 msgHeaderFifo_out.write(currMsgHeader);
+                sessionIDFifo_out.write(currSessionID);
             }
             else{
                 if(length == 0){// full header exactly in the end of the word
@@ -328,6 +330,7 @@ void bodyMerger(
                     if(endOfBody){
                         msgBodyFifo_out.write(lastMsgBody);
                         msgHeaderFifo_out.write(currMsgHeader);
+                        sessionIDFifo_out.write(currSessionID);
                         lastMsgBody.reset();
                     }
                 }
@@ -370,6 +373,7 @@ void msgStripper(
     hls::stream<sessionState>& currSessionStateFifo_out,
     hls::stream<msgBody>& currMsgBodyFifo_out, 
     // the output of the parsed msg
+    hls::stream<ap_uint<16> >& sessionIDFifo_out,
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
@@ -419,7 +423,7 @@ void msgStripper(
     bodyExtractor<IDX, W>(bodyExtractorStateFifo, bodyMergerStateFifo, msgBodyFifo_bodyMerger);
 
     bodyMerger<IDX, W>(currMsgBodyFifo_in, bodyMergerStateFifo, msgBodyFifo_bodyMerger, 
-        currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+        currMsgBodyFifo_out, sessionIDFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
 
 }
 
@@ -453,6 +457,7 @@ void parser(
     hls::stream<sessionState>& currSessionStateFifo_out,
     hls::stream<msgBody>& currMsgBodyFifo_out,
     // the output of the parsed msg
+    hls::stream<ap_uint<16> >& sessionIDFifo_out,
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
@@ -472,7 +477,8 @@ void parser(
     wordLen_fwd(currWordFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper);
 
     msgStripper<1, 0xa>(currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper, 
-        currSessionStateFifo, currMsgBodyFifo, currSessionStateFifo_out, currMsgBodyFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
+        currSessionStateFifo, currMsgBodyFifo, currSessionStateFifo_out, currMsgBodyFifo_out, 
+        sessionIDFifo_out, msgHeaderFifo_out, msgBodyFifo_out);
 }
 
 

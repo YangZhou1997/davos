@@ -223,6 +223,7 @@ void traffic_gen(
     stream<msgBody>&                currMsgBodyFifo,
     stream<sessionState>&           currSessionStateOutFifo, 
     stream<msgBody>&                currMsgBodyStateOutFifo, 
+    stream<ap_uint<16> >&           sessionIDOutFifo, 
     stream<msgHeader>&              msgHeaderOutFifo, 
     stream<msgBody>&                msgBodyOutFifo
 ){
@@ -255,7 +256,8 @@ void traffic_gen(
         allow_new_word[sidx] = true;
     }
 
-    if(!msgHeaderOutFifo.empty() && !msgBodyOutFifo.empty()){
+    if(!sessionIDOutFifo.empty() && !msgHeaderOutFifo.empty() && !msgBodyOutFifo.empty()){
+        ap_uint<16> sessionID = sessionIDOutFifo.read();
         msgHeader outMsgHeader = msgHeaderOutFifo.read();
         msgBody outMsgBody = msgBodyOutFifo.read();
         int sidx = get_idx(outMsgBody.currSessionID);
@@ -280,6 +282,7 @@ int main()
     stream<msgBody>                   currMsgBodyFifo;
     stream<sessionState>              currSessionStateOutFifo;
     stream<msgBody>                   currMsgBodyStateOutFifo;
+    stream<ap_uint<16> >              sessionIDOutFifo;
     stream<msgHeader>                 msgHeaderOutFifo;
     stream<msgBody>                   msgBodyOutFifo;
     
@@ -290,9 +293,9 @@ int main()
     
     while(cycleCount < 1000){
         parser(currWordFifo, currSessionStateFifo, currMsgBodyFifo, 
-            currSessionStateOutFifo, currMsgBodyStateOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
+            currSessionStateOutFifo, currMsgBodyStateOutFifo, sessionIDOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
         traffic_gen<1>(currWordFifo, currSessionStateFifo, currMsgBodyFifo, 
-            currSessionStateOutFifo, currMsgBodyStateOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
+            currSessionStateOutFifo, currMsgBodyStateOutFifo, sessionIDOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
         
         cycleCount ++;
     }

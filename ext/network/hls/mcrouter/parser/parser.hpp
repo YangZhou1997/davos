@@ -105,6 +105,7 @@ void parser(
     hls::stream<msgBody>&                   currMsgBodyFifo,
     hls::stream<sessionState>&              currSessionStateOutFifo,
     hls::stream<msgBody>&                   currMsgBodyStateOutFifo,
+    hls::stream<ap_uint<16> >&              sessionIDFifo_out,
     hls::stream<msgHeader>&                 msgHeaderOutFifo,
     hls::stream<msgBody>&                   msgBodyOutFifo
     );
