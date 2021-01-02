@@ -76,7 +76,6 @@ struct sessionID_stream{
 // EOF, SOF. 
 // return a specific sessionID
 void conn_manager(
-    hls::stream<ipTuple>& openTuples, //input
     hls::stream<openStatus>& openConStatus, //input
     hls::stream<ipTuple>& openConnection, //output 
     // you should separate the following fifos, as their rspFifo are not handled by a single function. 
@@ -87,7 +86,28 @@ void conn_manager(
     hls::stream<ap_uint<16> >& sessionIdFifo2, //output
     hls::stream<ap_uint<16> >& idxFifo, //input
 	hls::stream<ap_uint<16> >& sessionIdFifo3, //output
-	hls::stream<ap_uint<16> >& closedSessionIdFifo //input
+	hls::stream<ap_uint<16> >& closedSessionIdFifo, //input
+    ap_uint<14>		useConn,
+	ap_uint<32>		regIpAddress0,
+	ap_uint<32>		regIpAddress1,
+	ap_uint<32>		regIpAddress2,
+	ap_uint<32>		regIpAddress3,
+	ap_uint<32>		regIpAddress4,
+	ap_uint<32>		regIpAddress5,
+	ap_uint<32>		regIpAddress6,
+	ap_uint<32>		regIpAddress7,
+	ap_uint<32>		regIpAddress8,
+	ap_uint<32>		regIpAddress9,
+    ap_uint<16>		regIpPort0,
+	ap_uint<16>		regIpPort1,
+	ap_uint<16>		regIpPort2,
+	ap_uint<16>		regIpPort3,
+	ap_uint<16>		regIpPort4,
+	ap_uint<16>		regIpPort5,
+	ap_uint<16>		regIpPort6,
+	ap_uint<16>		regIpPort7,
+	ap_uint<16>		regIpPort8,
+	ap_uint<16>		regIpPort9
     // softTkoFIFO () 
 ){
 #pragma HLS PIPELINE II=1
@@ -150,10 +170,56 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
     // !!!??? you should use "else if"; 
     // if you just use "if", hls will think of you want to parallel the five block
     //, and check the data dependency, and reduce the II. 
-    if (!openTuples.empty()){
-        ipTuple tuple = openTuples.read();
-		openConnection.write(tuple);
-    }
+	static ap_uint<4> ipAddressIdx = 0;
+	if (ipAddressIdx < useConn)
+	{
+		ipTuple openTuple;
+		switch (ipAddressIdx)
+		{
+		case 0:
+			openTuple.ip_address = regIpAddress0;
+            openTuple.ip_port = regIpPort0;
+			break;
+		case 1:
+			openTuple.ip_address = regIpAddress1;
+            openTuple.ip_port = regIpPort1;
+			break;
+		case 2:
+			openTuple.ip_address = regIpAddress2;
+            openTuple.ip_port = regIpPort2;
+			break;
+		case 3:
+			openTuple.ip_address = regIpAddress3;
+            openTuple.ip_port = regIpPort3;
+			break;
+		case 4:
+			openTuple.ip_address = regIpAddress4;
+            openTuple.ip_port = regIpPort4;
+			break;
+		case 5:
+			openTuple.ip_address = regIpAddress5;
+            openTuple.ip_port = regIpPort5;
+			break;
+		case 6:
+			openTuple.ip_address = regIpAddress6;
+            openTuple.ip_port = regIpPort6;
+			break;
+		case 7:
+			openTuple.ip_address = regIpAddress7;
+            openTuple.ip_port = regIpPort7;
+			break;
+		case 8:
+			openTuple.ip_address = regIpAddress8;
+            openTuple.ip_port = regIpPort8;
+			break;
+		case 9:
+			openTuple.ip_address = regIpAddress9;
+            openTuple.ip_port = regIpPort9;
+			break;
+		}
+		openConnection.write(openTuple);
+		ipAddressIdx++;
+	}
 	if (!openConStatus.empty())
 	{
 		openStatus newConn = openConStatus.read();
@@ -288,6 +354,8 @@ bool ac_stash_remove(ap_uint<16> sessionID){
 #endif
 }
 
+static hls::stream<net_axis<DATA_WIDTH> > ac_wordProcessingQueues[AC_STASH_SIZE];
+
 void state_recovery(
     // with admission_control2
     hls::stream<ap_uint<16> >&              rxMetaData_in, // input from ac2
@@ -372,12 +440,14 @@ void state_recovery(
                 msgBody mb = ac_parsingState2[slot];
 
                 if(ac_parsingState_rsp[slot] == 1){
+                    // this session still has more words -- keep parsing
                     if(!ac_wordProcessingQueues[slot].empty()){
                         net_axis<DATA_WIDTH> currWord = ac_wordProcessingQueues[slot].read();
                         currWordFifo_out.write(currWord);
                         currSessionStateFifo_out.write(ss);
                         currMsgBodyFifo_out.write(mb);
                     }
+                    // no more words for this session -- stop parsing and store states
                     else{
                         ac_stash_remove(sessionID);
                         s_axis_upd_req.write(parser_htUpdateReq(sessionID, ss, mb, 0));
@@ -386,7 +456,7 @@ void state_recovery(
                 }
                 else{
                     ac_parsingState1[slot] = ss;
-                    ac_parsingState_rsp[slot] += 1;
+                    ac_parsingState_rsp[slot] = 1;
                 }
             }
             else if(!currMsgBodyFifo_in.empty()){
@@ -410,7 +480,7 @@ void state_recovery(
                 }
                 else{
                     ac_parsingState2[slot] = mb;
-                    ac_parsingState_rsp[slot] += 1;
+                    ac_parsingState_rsp[slot] = 1;
                 }
             }
             break;
@@ -438,8 +508,8 @@ static ap_uint<16> buffered_sessionWaiting[NUM_WAITING_Q];
 
 bool sessionWaiting_empty(uint32_t slot){
 #pragma HLS INLINE
-    // return ((buffered_sessionWaiting[slot] == 0) && sessionWaitingQueues[slot].empty());
-    return (buffered_sessionWaiting[slot] == 0);
+    return ((buffered_sessionWaiting[slot] == 0) && sessionWaitingQueues[slot].empty());
+    // return (buffered_sessionWaiting[slot] == 0);
 }
 
 bool sessionWaiting_full(uint32_t slot){
@@ -450,30 +520,38 @@ bool sessionWaiting_full(uint32_t slot){
 // You must have checked empty() before; 
 ap_uint<16> sessionWaiting_read(uint32_t slot){
 #pragma HLS INLINE
-    ap_uint<16> value = buffered_sessionWaiting[slot];
+    ap_uint<16> sessionID = buffered_sessionWaiting[slot];
     if(!sessionWaitingQueues[slot].empty()){
         buffered_sessionWaiting[slot] = sessionWaitingQueues[slot].read();
     }
     else{
         buffered_sessionWaiting[slot] = 0;
     }
-    return value;
+    return sessionID;
 }
 
 // You must have checked empty() before; 
 ap_uint<16> sessionWaiting_peek(uint32_t slot){
 #pragma HLS INLINE
-    return buffered_sessionWaiting[slot];
+    ap_uint<16> sessionID = buffered_sessionWaiting[slot];
+    if(sessionID == 0){
+        ap_uint<16> sessionID2 = sessionWaitingQueues[slot].read();
+        buffered_sessionWaiting[slot] = sessionID2;
+        return sessionID2;
+    }
+    else{
+        return sessionID;
+    }
 }
 
 void sessionWaiting_write(uint32_t slot, ap_uint<16> val){
 #pragma HLS INLINE
-    if(buffered_sessionWaiting[slot] == 0){
-        buffered_sessionWaiting[slot] = val;
-    }
-    else{
+    // if(buffered_sessionWaiting[slot] == 0){
+    //     buffered_sessionWaiting[slot] = val;
+    // }
+    // else{
         sessionWaitingQueues[slot].write(val);
-    }
+    // }
 }
 
 // hashing each session with words into multiple waiting queue
@@ -570,14 +648,18 @@ void admission_control2(
                     slot = slot - rem;
                 }
                 fsmState = 1;
-                currSessionID = sessionWaiting_peek(slot);
-                // lookup the session stash maintained by the state recovery. 
-                sessionStashLookupFifo_out.write(currSessionID);
             }
             startPos += 1;
             break;
         }
         case 1:{
+            currSessionID = sessionWaiting_peek(slot);
+            // lookup the session stash maintained by the state recovery. 
+            sessionStashLookupFifo_out.write(currSessionID);
+            fsmState = 2;
+            break;
+        }
+        case 2:{
             if(!sessionStashLookupRspFifo_in.empty()){
                 bool ret = sessionStashLookupRspFifo_in.read();
                 if(ret){ // in pipeline -- conflict, cannot enter pipeline
@@ -587,12 +669,12 @@ void admission_control2(
                     // first pop the sessionID from buffered_waitingQ;
                     ap_uint<16> tmp = sessionWaiting_read(slot);
                     rxMetaData_out.write(currSessionID);
-                    fsmState = 2;
+                    fsmState = 3;
                 }
             }
             break;
         }
-        case 2:{
+        case 3:{
             if(!wordWaitingQueues[slot].empty()){
                 net_axis<DATA_WIDTH> currWord = wordWaitingQueues[slot].read();
                 rxData_out.write(currWord);
@@ -1017,7 +1099,6 @@ void mcrouter(
 	hls::stream<ap_uint<16> >&		rxMetaData,
 	hls::stream<net_axis<DATA_WIDTH> >&		rxData,
     // for mcrouter openning a connection
-    hls::stream<ipTuple>&           openTuples, // user-provided memcached tuples. 
 	hls::stream<ipTuple>&			openConnection,
 	hls::stream<openStatus>&		openConStatus,
     // for mcrouter closing a connection
@@ -1025,42 +1106,83 @@ void mcrouter(
     // for mcrouter sending data out
 	hls::stream<appTxMeta>&			txMetaData,
 	hls::stream<net_axis<DATA_WIDTH> >&	txData,
-	hls::stream<appTxRsp>&			txStatus
+	hls::stream<appTxRsp>&			txStatus, 
+	ap_uint<14>		useConn,
+	ap_uint<32>		regIpAddress0,
+	ap_uint<32>		regIpAddress1,
+	ap_uint<32>		regIpAddress2,
+	ap_uint<32>		regIpAddress3,
+	ap_uint<32>		regIpAddress4,
+	ap_uint<32>		regIpAddress5,
+	ap_uint<32>		regIpAddress6,
+	ap_uint<32>		regIpAddress7,
+	ap_uint<32>		regIpAddress8,
+	ap_uint<32>		regIpAddress9,
+    ap_uint<16>		regIpPort0,
+	ap_uint<16>		regIpPort1,
+	ap_uint<16>		regIpPort2,
+	ap_uint<16>		regIpPort3,
+	ap_uint<16>		regIpPort4,
+	ap_uint<16>		regIpPort5,
+	ap_uint<16>		regIpPort6,
+	ap_uint<16>		regIpPort7,
+	ap_uint<16>		regIpPort8,
+	ap_uint<16>		regIpPort9
 ){
 #pragma HLS DATAFLOW disable_start_propagation
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
 
-#pragma HLS INTERFACE axis register port=listenPort name=m_axis_listen_port
-#pragma HLS INTERFACE axis register port=listenPortStatus name=s_axis_listen_port_status
-//#pragma HLS INTERFACE axis register port=closePort name=m_axis_close_port
+    #pragma HLS INTERFACE axis register port=listenPort name=m_axis_listen_port
+    #pragma HLS INTERFACE axis register port=listenPortStatus name=s_axis_listen_port_status
+    //#pragma HLS INTERFACE axis register port=closePort name=m_axis_close_port
 
-#pragma HLS INTERFACE axis register port=notifications name=s_axis_notifications
-#pragma HLS INTERFACE axis register port=readRequest name=m_axis_read_package
-#pragma HLS DATA_PACK variable=notifications
-#pragma HLS DATA_PACK variable=readRequest
+    #pragma HLS INTERFACE axis register port=notifications name=s_axis_notifications
+    #pragma HLS INTERFACE axis register port=readRequest name=m_axis_read_package
+    #pragma HLS DATA_PACK variable=notifications
+    #pragma HLS DATA_PACK variable=readRequest
 
-#pragma HLS INTERFACE axis register port=rxMetaData name=s_axis_rx_metadata
-#pragma HLS INTERFACE axis register port=rxData name=s_axis_rx_data
-//#pragma HLS DATA_PACK variable=rxMetaData
+    #pragma HLS INTERFACE axis register port=rxMetaData name=s_axis_rx_metadata
+    #pragma HLS INTERFACE axis register port=rxData name=s_axis_rx_data
+    //#pragma HLS DATA_PACK variable=rxMetaData
 
-#pragma HLS INTERFACE axis register port=openConnection name=m_axis_open_connection
-#pragma HLS INTERFACE axis register port=openConStatus name=s_axis_open_status
-#pragma HLS INTERFACE axis register port=openTuples name=s_axis_open_tuples
-#pragma HLS DATA_PACK variable=openConnection
-#pragma HLS DATA_PACK variable=openConStatus
-#pragma HLS DATA_PACK variable=openTuples
+    #pragma HLS INTERFACE axis register port=openConnection name=m_axis_open_connection
+    #pragma HLS INTERFACE axis register port=openConStatus name=s_axis_open_status
+    #pragma HLS INTERFACE axis register port=openTuples name=s_axis_open_tuples
+    #pragma HLS DATA_PACK variable=openConnection
+    #pragma HLS DATA_PACK variable=openConStatus
+    #pragma HLS DATA_PACK variable=openTuples
 
-#pragma HLS INTERFACE axis register port=closeConnection name=m_axis_close_connection
+    #pragma HLS INTERFACE axis register port=closeConnection name=m_axis_close_connection
 
-#pragma HLS INTERFACE axis register port=txMetaData name=m_axis_tx_metadata
-#pragma HLS INTERFACE axis register port=txData name=m_axis_tx_data
-#pragma HLS INTERFACE axis register port=txStatus name=s_axis_tx_status
-#pragma HLS DATA_PACK variable=txMetaData
-#pragma HLS DATA_PACK variable=txStatus
+    #pragma HLS INTERFACE axis register port=txMetaData name=m_axis_tx_metadata
+    #pragma HLS INTERFACE axis register port=txData name=m_axis_tx_data
+    #pragma HLS INTERFACE axis register port=txStatus name=s_axis_tx_status
+    #pragma HLS DATA_PACK variable=txMetaData
+    #pragma HLS DATA_PACK variable=txStatus
 
-    // hls will infer it as registers
-    #pragma HLS ARRAY_PARTITION variable=stashTable complete
+	#pragma HLS INTERFACE ap_none register port=useConn
+	#pragma HLS INTERFACE ap_none register port=regIpAddress0
+	#pragma HLS INTERFACE ap_none register port=regIpAddress1
+	#pragma HLS INTERFACE ap_none register port=regIpAddress2
+	#pragma HLS INTERFACE ap_none register port=regIpAddress3
+	#pragma HLS INTERFACE ap_none register port=regIpAddress4
+	#pragma HLS INTERFACE ap_none register port=regIpAddress5
+	#pragma HLS INTERFACE ap_none register port=regIpAddress6
+	#pragma HLS INTERFACE ap_none register port=regIpAddress7
+	#pragma HLS INTERFACE ap_none register port=regIpAddress8
+	#pragma HLS INTERFACE ap_none register port=regIpAddress9
+    #pragma HLS INTERFACE ap_none register port=regIpPort0
+	#pragma HLS INTERFACE ap_none register port=regIpPort1
+	#pragma HLS INTERFACE ap_none register port=regIpPort2
+	#pragma HLS INTERFACE ap_none register port=regIpPort3
+	#pragma HLS INTERFACE ap_none register port=regIpPort4
+	#pragma HLS INTERFACE ap_none register port=regIpPort5
+	#pragma HLS INTERFACE ap_none register port=regIpPort6
+	#pragma HLS INTERFACE ap_none register port=regIpPort7
+	#pragma HLS INTERFACE ap_none register port=regIpPort8
+	#pragma HLS INTERFACE ap_none register port=regIpPort9
+
 
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo0("mc_sessionIdFifo0");
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo1("mc_sessionIdFifo1");
@@ -1216,8 +1338,10 @@ void mcrouter(
 	open_port(listenPort, listenPortStatus);
 
     // connecting to remote memcached;
-    conn_manager(openTuples, openConStatus, openConnection, mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, \
-            mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, mc_closedSessionIdFifo);
+    conn_manager(openConStatus, openConnection, mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, 
+            mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, mc_closedSessionIdFifo, 
+            useConn, regIpAddress0, regIpAddress1, regIpAddress2, regIpAddress3, regIpAddress4, regIpAddress5, regIpAddress6, regIpAddress7, regIpAddress8, regIpAddress9, 
+            regIpPort0, regIpPort1, regIpPort2, regIpPort3, regIpPort4, regIpPort5, regIpPort6, regIpPort7, regIpPort8, regIpPort9);
     
     // handling new data arriving (it might come from a new session), and connection closed
 	notification_handler(notifications, readRequest, mc_closedSessionIdFifo);

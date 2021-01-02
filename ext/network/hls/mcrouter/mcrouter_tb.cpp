@@ -819,7 +819,6 @@ int main()
 {
 	stream<ap_uint<16> > listenPort("listenPort");
 	stream<bool> listenPortStatus("listenPortStatus");
-	stream<ipTuple> openTuples;
 	stream<ipTuple> openConnection;
 	stream<openStatus> openConStatus;
 	stream<ap_uint<16> > closeConnection;
@@ -857,8 +856,10 @@ int main()
 	while (cycleCount < 1000)
 	{
         mcrouter(listenPort, listenPortStatus, notifications, readRequest,
-		    rxMetaData, rxData, openTuples, openConnection, openConStatus,
-			closeConnection, txMetaData, txData, txStatus);
+		    rxMetaData, rxData, openConnection, openConStatus,
+			closeConnection, txMetaData, txData, txStatus, 1, 
+            0x0a010101, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0x3412, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 #define TEST 1
 
@@ -878,25 +879,16 @@ int main()
         
 		switch(tbState){
             case 0: {
-                // let mcrouter try to connect remote memcached; 
-        	    ipTuple tuple;
-                tuple.ip_address = 0x0a010101;
-        		tuple.ip_port = 0x3412;
-                openTuples.write(tuple);
-                tbState = 1;
-                break;
-            }
-            case 1: {
                 // read mcrouter connection request to memcached. 
                 if (!openConnection.empty()){
                     ipTuple tuple = openConnection.read();
                     openConStatus.write(openStatus(memcachedSessionID, true));
         		    cout << "mcrouter connecting to: " << hex << tuple.ip_address << ":" << dec << tuple.ip_port << endl;
                 }
-                tbState = 2;
+                tbState = 1;
                 break;
             }
-            case 2: {
+            case 1: {
                 // let mcrouter listen on port 
         		if (!listenPort.empty())
         		{
@@ -905,7 +897,7 @@ int main()
         			cout << "mcrouter listens on port: " << dec << port << endl;
         			portOpened = 0;
         		}
-                tbState = 1;
+                tbState = 0;
                 break;
             }
         }
