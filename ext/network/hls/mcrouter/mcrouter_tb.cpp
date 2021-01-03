@@ -117,14 +117,14 @@ string getStr(uint32_t startPos, uint32_t length){
 void workload_gen(){    
     srand(0xdeadbeef);
     // key: 1-40bytes
-    // value: 1-59bytes
+    // value: 1-50bytes
     for(int i = 0; i < NUM_KV; i++){
         uint32_t startPos = rand() % strlen(baseStr);
         uint32_t length = rand() % (40-1) + 1;
         string key = getStr(startPos, length);
 
         startPos = rand() % strlen(baseStr);
-        length = rand() % (59-1) + 1;
+        length = rand() % (50-1) + 1;
         string val = getStr(startPos, length);
         if(kvMap.find(key) != kvMap.end()){
             i--;
@@ -138,7 +138,7 @@ void workload_gen(){
         kvMap[key] = val;
     }
 
-    uint8_t* buf = new uint8_t[NUM_KV*(24+40+59)];
+    uint8_t* buf = new uint8_t[NUM_KV*(24+40+50+8)];
     int currPos = 0;
     for(int i = 0; i < NUM_KV; i++){
         bool op = ops[i];
@@ -168,9 +168,17 @@ void workload_gen(){
         else{
             req.request.opcode = PROTOCOL_BINARY_CMD_SET;
             req.request.keylen = htons((uint16_t)key.length());
-            req.request.bodylen = htonl(key.length() + val.length());
+            req.request.extlen = 8;
+            req.request.bodylen = htonl(key.length() + val.length()+8);
             memcpy(buf + currPos, req.bytes, 24);
             currPos += 24;
+            //!!! set request must have flags and expiry. 
+            uint32_t Flags = htonl(0xdeadbeef);
+            uint32_t Expiry = htonl(0x00001c20);
+            memcpy(buf + currPos, (char *)&Flags, 4);
+            currPos += 4;
+            memcpy(buf + currPos, (char *)&Expiry, 4);
+            currPos += 4;
             memcpy(buf + currPos, key.c_str(), key.length());
             currPos += key.length();
             memcpy(buf + currPos, val.c_str(), val.length());
@@ -209,7 +217,7 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
             req.display();
 
             char* key = new char[keylen + 1];
-            memcpy(key, data+24, keylen);
+            memcpy(key, data+24+extlen, keylen);
             key[keylen] = '\0';
             cout << "key: " << key << endl;
             
@@ -227,12 +235,12 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
             req.display();
 
             char* key = new char[keylen + 1];
-            memcpy(key, data+24, keylen);
+            memcpy(key, data+24+extlen, keylen);
             key[keylen] = '\0';
             cout << "key: " << key << endl;
 
             char* val = new char[vallen + 1];
-            memcpy(val, data+24+keylen, vallen);
+            memcpy(val, data+24+keylen+extlen, vallen);
             val[vallen] = '\0';
             cout << "val: " << val << endl;
 
@@ -253,7 +261,7 @@ void displayMsg(uint8_t* data, uint32_t len, bool check_res, uint32_t opaque){
             req.display();
             
             char* val = new char[vallen + 1];
-            memcpy(val, data+24, vallen);
+            memcpy(val, data+24+extlen, vallen);
             val[vallen] = '\0';
 
             if(check_res){
@@ -434,16 +442,20 @@ void memcached(
                     bool op = (req.request.opcode != PROTOCOL_BINARY_CMD_GET);
                     string val = vals[opaque];
                     uint32_t vallen = val.length();
-                    uint8_t* buf = new uint8_t[24+vallen];
+                    uint8_t* buf = new uint8_t[24+vallen+8];
                     if(!op){
                         rsp.response.magic = PROTOCOL_BINARY_RES;
                         rsp.response.opcode = PROTOCOL_BINARY_CMD_RGET;
-                        rsp.response.bodylen = htonl(vallen);
+                        rsp.response.extlen = 4;
+                        rsp.response.bodylen = htonl(vallen+4);
                         memcpy(buf, rsp.bytes, 24);
-                        memcpy(buf + 24, val.c_str(), vallen);
-                        byteArray2axisWord(buf, 24+vallen, rxWords);
+                        // !!! Get response (if found) must have flags set. 
+                        uint32_t Flags = htonl(0xdeadbeef);
+                        memcpy(buf + 24, (char *)&Flags, 4);
+                        memcpy(buf + 24 + 4, val.c_str(), vallen);
+                        byteArray2axisWord(buf, 24+vallen+4, rxWords);
                         // initiating the process of memcached sending response back
-                        appNotification notific(memcachedSessionID, 24+vallen, 0, 0, false);
+                        appNotification notific(memcachedSessionID, 24+vallen+4, 0, 0, false);
                         notifications.write(notific);
                     }
                     else{

@@ -237,6 +237,7 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
         // ap_uint<16> idx = (hashVal&(MAX_CONNECTED_SESSIONS-1));
         sessionIdFifo2.write(connectedSessions[idx]);
     }
+    // this functionality is not being used right now. 
     else if(!idxFifo.empty()){
         ap_uint<16> idx = idxFifo.read();
         // TODO: handling closed connections, or in policy engine
@@ -1148,10 +1149,8 @@ void mcrouter(
 
     #pragma HLS INTERFACE axis register port=openConnection name=m_axis_open_connection
     #pragma HLS INTERFACE axis register port=openConStatus name=s_axis_open_status
-    #pragma HLS INTERFACE axis register port=openTuples name=s_axis_open_tuples
     #pragma HLS DATA_PACK variable=openConnection
     #pragma HLS DATA_PACK variable=openConStatus
-    #pragma HLS DATA_PACK variable=openTuples
 
     #pragma HLS INTERFACE axis register port=closeConnection name=m_axis_close_connection
 

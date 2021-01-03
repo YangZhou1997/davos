@@ -381,7 +381,6 @@ logic[63:0] timeInCycles;
 logic[7:0] listenCounter;
 logic[15:0] openCounter;
 logic[31:0] iperfAddresses [9:0];
-logic[16:0] iperfPorts [9:0];
 logic[63:0] timer_cycles;
 logic[63:0] iperf_execution_cycles;
 logic running;
@@ -392,31 +391,16 @@ always @(posedge user_clk) begin
       runExperiment <= 1'b0;
       axis_iperf_cmd_ready <= 1'b0;
       axis_iperf_addr.ready <= 1'b0;
-
-      iperfAddresses[0] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[1] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[2] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[3] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[4] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[5] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[6] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[7] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[8] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[9] <= 32'h0500A8C0; // 192.168.0.5
-
-      iperfPorts[0] <= 16'h13ED; //5101
-      iperfPorts[1] <= 16'h13ED; //5101
-      iperfPorts[2] <= 16'h13ED; //5101
-      iperfPorts[3] <= 16'h13ED; //5101
-      iperfPorts[4] <= 16'h13ED; //5101
-      iperfPorts[5] <= 16'h13ED; //5101
-      iperfPorts[6] <= 16'h13ED; //5101
-      iperfPorts[7] <= 16'h13ED; //5101
-      iperfPorts[8] <= 16'h13ED; //5101
-      iperfPorts[9] <= 16'h13ED; //5101
-      
-      noOfConnections <= '0; 
-      
+      iperfAddresses[0] <= 32'h0B01D40A;
+      iperfAddresses[1] <= 32'h0B01D40A;
+      iperfAddresses[2] <= 32'h0B01D40A;
+      iperfAddresses[3] <= 32'h0B01D40A;
+      iperfAddresses[4] <= 32'h0B01D40A;
+      iperfAddresses[5] <= 32'h0B01D40A;
+      iperfAddresses[6] <= 32'h0B01D40A;
+      iperfAddresses[7] <= 32'h0B01D40A;
+      iperfAddresses[8] <= 32'h0B01D40A;
+      iperfAddresses[9] <= 32'h0B01D40A;
       running <= 1'b0;
             
       listenCounter <= '0;
@@ -426,22 +410,37 @@ always @(posedge user_clk) begin
       runExperiment <= 1'b0;
       axis_iperf_cmd_ready <= 1'b1;
       axis_iperf_addr.ready <= 1'b1;
-      if (runExperimentVio == 1'b1) begin
-         iperfAddresses[0] <= 32'h0500A8C0; // 192.168.0.5
-         iperfPorts[0] <= 16'h13ED; //5101
-         noOfConnections <= 16'h01; 
-
+      if (axis_iperf_cmd_valid && axis_iperf_cmd_ready) begin
          runExperiment <= 1'b1;
-         running <= 1'b1;
+         dualMode <= axis_iperf_cmd_data[0];
+         noOfConnections <= {1'b0, axis_iperf_cmd_data[15:1]};
+         pkgWordCount <= axis_iperf_cmd_data[23:16];
+         packetGap <= axis_iperf_cmd_data[31:24];
+         timeInSeconds <= axis_iperf_cmd_data[63:32];
+         timeInCycles <= axis_iperf_cmd_data[127:64];
          timer_cycles <= '0;
          iperf_execution_cycles <= '0;
+         running <= 1'b1;
+      end
+      if (runExperimentVio == 1'b1) begin
+         runExperiment <= 1'b1;
+         iperfAddresses[0] <= 32'h0B01D40A;
+         dualMode <= 1'b0;//axis_iperf_cmd_data[0];
+         noOfConnections <= 16'h01; //{1'b0, axis_iperf_cmd_data[15:1]};
+         pkgWordCount <= 8'd175;//axis_iperf_cmd_data[23:16];
+         packetGap <= 0;//axis_iperf_cmd_data[31:24];
+         timeInSeconds <= 32'd10;//axis_iperf_cmd_data[63:32];
+         timeInCycles <= 64'd1562500000;//axis_iperf_cmd_data[127:64];
+         timer_cycles <= '0;
+         iperf_execution_cycles <= '0;
+         running <= 1'b1;
       end
       if (running) begin
         timer_cycles <= timer_cycles + 1;
       end
-    //   if (axis_iperf_addr.valid && axis_iperf_addr.ready) begin
-    //     iperfAddresses[axis_iperf_addr.dest] <= axis_iperf_addr.data;
-    //   end
+      if (axis_iperf_addr.valid && axis_iperf_addr.ready) begin
+        iperfAddresses[axis_iperf_addr.dest] <= axis_iperf_addr.data;
+      end
       if (m_axis_listen_port.valid && m_axis_listen_port.ready) begin
         listenCounter <= listenCounter +1;
       end
@@ -461,7 +460,7 @@ vio_udp_iperf_client iperf_tcp_vio (
   //.probe_out1(regTargetIpAddress)  // output wire [31 : 0] probe_out1
 );
 
-mcrouter_ip mcrouter (
+iperf_client_ip iperf_client (
    .m_axis_close_connection_V_V_TVALID(m_axis_close_connection.valid),      // output wire m_axis_close_connection_TVALID
    .m_axis_close_connection_V_V_TREADY(m_axis_close_connection.ready),      // input wire m_axis_close_connection_TREADY
    .m_axis_close_connection_V_V_TDATA(m_axis_close_connection.data),        // output wire [15 : 0] m_axis_close_connection_TDATA
@@ -504,7 +503,13 @@ mcrouter_ip mcrouter (
    .s_axis_tx_status_V_TDATA(s_axis_tx_status.data),                      // input wire [23 : 0] s_axis_tx_status_TDATA
    
    //Client only
-   .useConn_V(noOfConnections[13:0]),                                      // input wire [13 : 0] useConn_V
+   .runExperiment_V(runExperiment),
+   .dualModeEn_V(dualMode),                                          // input wire [0 : 0] dualModeEn_V
+   .useConn_V(noOfConnections[13:0]),                                                // input wire [7 : 0] useConn_V
+   .pkgWordCount_V(pkgWordCount),                                      // input wire [7 : 0] pkgWordCount_V
+   .packetGap_V(packetGap),
+   .timeInSeconds_V(timeInSeconds),
+   .timeInCycles_V(timeInCycles),
    .regIpAddress0_V(iperfAddresses[0]),                                    // input wire [31 : 0] regIpAddress1_V
    .regIpAddress1_V(iperfAddresses[1]),                                    // input wire [31 : 0] regIpAddress1_V
    .regIpAddress2_V(iperfAddresses[2]),                                    // input wire [31 : 0] regIpAddress1_V
@@ -515,16 +520,6 @@ mcrouter_ip mcrouter (
    .regIpAddress7_V(iperfAddresses[7]),                                    // input wire [31 : 0] regIpAddress1_V
    .regIpAddress8_V(iperfAddresses[8]),                                    // input wire [31 : 0] regIpAddress1_V
    .regIpAddress9_V(iperfAddresses[9]),                                    // input wire [31 : 0] regIpAddress1_V
-   .regIpPort0_V(iperfPorts[0]), 
-   .regIpPort1_V(iperfPorts[1]), 
-   .regIpPort2_V(iperfPorts[2]), 
-   .regIpPort3_V(iperfPorts[3]), 
-   .regIpPort4_V(iperfPorts[4]), 
-   .regIpPort5_V(iperfPorts[5]), 
-   .regIpPort6_V(iperfPorts[6]), 
-   .regIpPort7_V(iperfPorts[7]), 
-   .regIpPort8_V(iperfPorts[8]), 
-   .regIpPort9_V(iperfPorts[9]), 
    .ap_clk(user_clk),                                                          // input wire aclk
    .ap_rst_n(user_aresetn)                                                    // input wire aresetn
  );

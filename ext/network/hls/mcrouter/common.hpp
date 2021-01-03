@@ -67,7 +67,7 @@ struct msgHeader {
     }
 };
 
-#define MAX_BODY_LEN (1024-35-48*3-16-1) // 828
+#define MAX_BODY_LEN (1024-35-48*3-16-5) // 824 bits -> 103 bytes
 #define MAX_KEY_LEN (40*8)
 struct msgBody {
 	ap_uint<32>                 msgID;  // globally unique msgID
@@ -78,7 +78,7 @@ struct msgBody {
     ap_uint<48>			        keyPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<48>                 valPtr; // ptr to the memory region managed by slab memory allocator
     ap_uint<16>                 currSessionID;
-    ap_uint<1>                  reserved;
+    ap_uint<5>                  reserved;
     ap_uint<MAX_BODY_LEN>       body;
     msgBody() {
         msgID = 0;
@@ -113,8 +113,8 @@ struct msgBody {
         keyPtr = w(940, 893);
         valPtr = w(892, 845);
         currSessionID = w(844, 829);
-        reserved = w(828, 828);
-        body = w(827, 0);
+        reserved = w(828, 824);
+        body = w(823, 0);
     }
     ap_uint<1024> output_word(){
         return (msgID, extInl, keyInl, valInl, extPtr, keyPtr, valPtr, currSessionID, reserved, body);
@@ -138,14 +138,17 @@ struct msgBody {
 
         std::cout << "ext: ";
         for(int i = 0; i < extlen; i++){
-            std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
+            std::cout << std::hex << std::setfill ('0') << std::setw(2) << +uint8_t(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
             pos += 8;
         }
+        std::cout << std::setw(0);
+
         std::cout << std::endl << "key: ";
         for(int i = 0; i < keylen; i++){
             std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
             pos += 8;
         }
+
         std::cout << std::endl << "val: ";
         for(int i = 0; i < vallen; i++){
             std::cout << char(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));

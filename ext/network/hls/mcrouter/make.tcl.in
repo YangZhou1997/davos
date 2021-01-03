@@ -26,7 +26,7 @@ if {$command == "synthesis"} {
 } elseif {$command == "csim"} {
    csim_design
 } elseif {$command == "ip"} {
-   export_design -format ip_catalog -ipname "mcrouter" -display_name "Echo Server Application for 10G TOE" -description "Echos packets on connections coming in on port 7." -vendor "ethz.systems" -version "1.2"
+   export_design -format ip_catalog -ipname "mcrouter" -display_name "Facebook Mcrouter" -description "Forwarding memcached requests." -vendor "yangz.me" -version "1.0"
 } elseif {$command == "installip"} {
    file mkdir ${IPREPO_DIR}
    file delete -force ${IPREPO_DIR}/${PROJECT_NAME}
