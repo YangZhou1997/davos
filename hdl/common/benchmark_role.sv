@@ -393,27 +393,27 @@ always @(posedge user_clk) begin
       axis_iperf_cmd_ready <= 1'b0;
       axis_iperf_addr.ready <= 1'b0;
 
-      iperfAddresses[0] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[1] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[2] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[3] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[4] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[5] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[6] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[7] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[8] <= 32'h0500A8C0; // 192.168.0.5
-      iperfAddresses[9] <= 32'h0500A8C0; // 192.168.0.5
+      iperfAddresses[0] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[1] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[2] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[3] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[4] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[5] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[6] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[7] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[8] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[9] <= 32'hC0A80006; // 192.168.0.6
 
-      iperfPorts[0] <= 16'h13ED; //5101
-      iperfPorts[1] <= 16'h13ED; //5101
-      iperfPorts[2] <= 16'h13ED; //5101
-      iperfPorts[3] <= 16'h13ED; //5101
-      iperfPorts[4] <= 16'h13ED; //5101
-      iperfPorts[5] <= 16'h13ED; //5101
-      iperfPorts[6] <= 16'h13ED; //5101
-      iperfPorts[7] <= 16'h13ED; //5101
-      iperfPorts[8] <= 16'h13ED; //5101
-      iperfPorts[9] <= 16'h13ED; //5101
+      iperfPorts[0] <= 16'h1389; //5001
+      iperfPorts[1] <= 16'h1389; //5001
+      iperfPorts[2] <= 16'h1389; //5001
+      iperfPorts[3] <= 16'h1389; //5001
+      iperfPorts[4] <= 16'h1389; //5001
+      iperfPorts[5] <= 16'h1389; //5001
+      iperfPorts[6] <= 16'h1389; //5001
+      iperfPorts[7] <= 16'h1389; //5001
+      iperfPorts[8] <= 16'h1389; //5001
+      iperfPorts[9] <= 16'h1389; //5001
       
       noOfConnections <= '0; 
       
@@ -427,8 +427,8 @@ always @(posedge user_clk) begin
       axis_iperf_cmd_ready <= 1'b1;
       axis_iperf_addr.ready <= 1'b1;
       if (runExperimentVio == 1'b1) begin
-         iperfAddresses[0] <= 32'h0500A8C0; // 192.168.0.5
-         iperfPorts[0] <= 16'h13ED; //5101
+         iperfAddresses[0] <= 32'hC0A80006; // 192.168.0.6
+         iperfPorts[0] <= 16'h1389; //5001
          noOfConnections <= 16'h01; 
 
          runExperiment <= 1'b1;

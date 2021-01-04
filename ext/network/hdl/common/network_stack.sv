@@ -1474,6 +1474,7 @@ reg[3:0] board_number;
 
 always @(posedge net_clk) begin
     if (~net_aresetn) begin
+        // !!! here, you must write the local ip address in reversed way
         // local_ip_address <= 32'hD1D4010B; // 10.1.212.209
         local_ip_address <= 32'h0500A8C0; // 192.168.0.5
         board_number <= 0;
