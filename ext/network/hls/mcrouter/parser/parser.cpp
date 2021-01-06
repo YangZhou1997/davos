@@ -244,7 +244,9 @@ void bodyExtractor(
             }
             endOfBody = (MAX_BODY_LEN-startPos+length == currMsgHeader.bodyLen*8);
         }
-        bodyMergerStateFifo_out.write(bodyMergeState(currSessionID, currMsgHeader, lastMsgIndicator, startPos, length, endOfBody));
+        ap_uint<32> posA = startPos - 1;
+        ap_uint<32> posB = startPos - length;
+        bodyMergerStateFifo_out.write(bodyMergeState(currSessionID, currMsgHeader, lastMsgIndicator, startPos, length, posA, posB, endOfBody));
         msgBodyFifo_bodyMerger.write(currMsgBody);
     }
 }
@@ -299,6 +301,8 @@ void bodyMerger(
         ap_uint<4> lastMsgIndicator = state.lastMsgIndicator;
         ap_uint<32> startPos = state.startPos;
         ap_uint<32> length = state.length;
+        ap_uint<32> posA = state.posA;
+        ap_uint<32> posB = state.posB;
         ap_uint<1> endOfBody = state.endOfBody;
         msgBody partialMsgBody = msgBodyFifo_in.read();
 
@@ -343,7 +347,7 @@ void bodyMerger(
 
                     if(endOfBody){
                         msgBody lastMsgBody = msgbody_stashTable[slot];
-                        lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
+                        lastMsgBody.body(posA, posB) = partialMsgBody.body(posA, posB);
                         msgBodyFifo_out.write(lastMsgBody);
                         msgHeaderFifo_out.write(currMsgHeader);
                         sessionIDFifo_out.write(currSessionID);
@@ -354,7 +358,7 @@ void bodyMerger(
                         }
                     }
                     else{
-                        msgbody_stashTable[slot].body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
+                        msgbody_stashTable[slot].body(posA, posB) = partialMsgBody.body(posA, posB);
                         // consumed this word done. 
                         if(lastMsgIndicator){ // lastMsgIndicator must be 1
                             currMsgBodyFifo_out.write(msgbody_stashTable[slot]);

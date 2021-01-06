@@ -72,6 +72,8 @@ struct bodyMergeState{
     ap_uint<4>  lastMsgIndicator;
     ap_uint<32> startPos;
     ap_uint<32> length;
+    ap_uint<32> posA;
+    ap_uint<32> posB;
     ap_uint<1>  endOfBody;
     bodyMergeState(){
         currSessionID = 0;
@@ -79,15 +81,17 @@ struct bodyMergeState{
         lastMsgIndicator = 0;
         startPos = 0;
         length = 0;
+        posA = 0;
+        posB = 0;
         endOfBody = 0;
     }
     bodyMergeState(ap_uint<16> currSessionID, msgHeader currMsgHeader, ap_uint<4> lastMsgIndicator, 
-        ap_uint<32> startPos, ap_uint<32> length, ap_uint<1> endOfBody): 
+        ap_uint<32> startPos, ap_uint<32> length, ap_uint<32> posA, ap_uint<32> posB, ap_uint<1> endOfBody): 
         currSessionID(currSessionID), currMsgHeader(currMsgHeader), lastMsgIndicator(lastMsgIndicator), 
-        startPos(startPos), length(length), endOfBody(endOfBody) {}
+        startPos(startPos), length(length), posA(posA), posB(posB), endOfBody(endOfBody) {}
 };
 
-const uint32_t PARSER_STASH_SIZE = 34;
+const uint32_t PARSER_STASH_SIZE = 35;
 // const uint32_t PARSER_STASH_SIZE = 8;
 
 static ap_uint<4> fsmState_stashTable[PARSER_STASH_SIZE];

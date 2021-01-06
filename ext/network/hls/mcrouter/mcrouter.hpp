@@ -63,13 +63,13 @@ struct msgContext {
     }
 };
 
-// const uint32_t AC_STASH_SIZE = 34;
+// const uint32_t AC_STASH_SIZE = 35;
 const uint32_t AC_STASH_SIZE = 8;
 static ap_uint<AC_STASH_SIZE> ac_valid_stashTable = ~(uint64_t)0;
 static ap_uint<16> ac_sessionID_stashTable[AC_STASH_SIZE];
-static ap_uint<2> ac_parsingState_rsp[AC_STASH_SIZE];
-static sessionState ac_parsingState1[AC_STASH_SIZE];
-static msgBody ac_parsingState2[AC_STASH_SIZE];
+// static ap_uint<2> ac_parsingState_rsp[AC_STASH_SIZE];
+// static sessionState ac_parsingState1[AC_STASH_SIZE];
+// static msgBody ac_parsingState2[AC_STASH_SIZE];
 
 int ac_stash_insert(ap_uint<16> sessionID);
 int ac_stash_lookup(ap_uint<16> sessionID);
