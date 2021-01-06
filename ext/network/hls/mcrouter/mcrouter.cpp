@@ -107,7 +107,10 @@ void conn_manager(
 	ap_uint<16>		regIpPort6,
 	ap_uint<16>		regIpPort7,
 	ap_uint<16>		regIpPort8,
-	ap_uint<16>		regIpPort9
+	ap_uint<16>		regIpPort9,
+    ap_uint<16>     ipAddressIdx_debug,
+    ap_uint<16>     useConn_debug,
+    ap_uint<16>     sessionCount_debug
     // softTkoFIFO () 
 ){
 #pragma HLS PIPELINE II=1
@@ -170,8 +173,12 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
     // !!!??? you should use "else if"; 
     // if you just use "if", hls will think of you want to parallel the five block
     //, and check the data dependency, and reduce the II. 
-	static ap_uint<4> ipAddressIdx = 0;
-	if (ipAddressIdx < useConn)
+	static ap_uint<16> ipAddressIdx = 0;
+    ipAddressIdx_debug = ipAddressIdx;
+    useConn_debug = (uint16_t)useConn;
+    sessionCount_debug = sessionCount;
+	
+    if (ipAddressIdx < useConn)
 	{
 		ipTuple openTuple;
 		switch (ipAddressIdx)
@@ -229,6 +236,10 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
             connectedSessionsSts[sessionCount] = 1;
             sessionCount += 1;
 		}
+        // temporary hack to test connection. 
+        else{
+            ipAddressIdx = 0;
+        }
 	}
     else if(!hashValFifo.empty()){
         ap_uint<32> hashVal = hashValFifo.read();
@@ -1026,40 +1037,40 @@ void deparser(
                 if(txRsp.remaining_space >= requiredSendLen){
                     fsmState = SEND_WORD;
                 }
+                else{
+                    fsmState = WAIT_TX_META;
+                }
             }
             break;
         }
         case SEND_WORD:{
-            if (!txData.full())
-    		{
-                net_axis<DATA_WIDTH> currWord;
-                
-                ap_uint<16> remainLen = requiredSendLen - currSendLen;
-                ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
-                if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "remainLen = " << remainLen << std::endl;
+            net_axis<DATA_WIDTH> currWord;
+            
+            ap_uint<16> remainLen = requiredSendLen - currSendLen;
+            ap_uint<16> body_sendingPos = (MAX_BODY_LEN + MEMCACHED_HDRLEN*8 - currSendLen);
+            if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
+            std::cout << "remainLen = " << remainLen << std::endl;
 
-                if(DATA_WIDTH >= remainLen){
-                    // currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = sendBuf(body_sendingPos-1, body_sendingPos-remainLen);
-                    // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
-                    currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
-                    currWord.keep = lenToKeep(remainLen/8);
-                    currWord.last = 1;
-    
-                    currSendLen += remainLen;
-                    fsmState = IDLE;
-                }
-                else{
-                    // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
-                    currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
-                    currWord.keep = lenToKeep(DATA_WIDTH/8);
-                    currWord.last = 0;
-                    sendBuf <<= DATA_WIDTH;
-                    currSendLen += DATA_WIDTH;
-                    fsmState = SEND_WORD;
-                }
-                txData.write(currWord);
-    		}
+            if(DATA_WIDTH >= remainLen){
+                // currWord.data(DATA_WIDTH-1, DATA_WIDTH-remainLen) = sendBuf(body_sendingPos-1, body_sendingPos-remainLen);
+                // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
+                currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
+                currWord.keep = lenToKeep(remainLen/8);
+                currWord.last = 1;
+
+                currSendLen += remainLen;
+                fsmState = IDLE;
+            }
+            else{
+                // currWord.data = sendBuf(body_sendingPos-1, body_sendingPos-DATA_WIDTH);
+                currWord.data = sendBuf(MAX_BODY_LEN + MEMCACHED_HDRLEN*8-1, MAX_BODY_LEN + MEMCACHED_HDRLEN*8-DATA_WIDTH);
+                currWord.keep = lenToKeep(DATA_WIDTH/8);
+                currWord.last = 0;
+                sendBuf <<= DATA_WIDTH;
+                currSendLen += DATA_WIDTH;
+                fsmState = SEND_WORD;
+            }
+            txData.write(currWord);
     		break;
         }
     }
@@ -1073,8 +1084,10 @@ void dummy(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
     // you must use each FIFO in order to make it get synthesized into IP
-    if(!closeConnection.full()){
+    static bool closed = false;
+    if(!closed){
     	closeConnection.write(0);
+        closed = true;
     }
 
     if(!regInsertFailureCount.empty()){
@@ -1128,7 +1141,10 @@ void mcrouter(
 	ap_uint<16>		regIpPort6,
 	ap_uint<16>		regIpPort7,
 	ap_uint<16>		regIpPort8,
-	ap_uint<16>		regIpPort9
+	ap_uint<16>		regIpPort9,
+    ap_uint<16>     ipAddressIdx_debug,
+    ap_uint<16>     useConn_debug,
+    ap_uint<16>     sessionCount_debug
 ){
 #pragma HLS DATAFLOW disable_start_propagation
 #pragma HLS INTERFACE ap_ctrl_none port=return
@@ -1340,7 +1356,8 @@ void mcrouter(
     conn_manager(openConStatus, openConnection, mc_cmdFifo, mc_sessionCountFifo, mc_sessionIdStreamFifo, 
             mc_hashValFifo, mc_sessionIdFifo2, mc_idxFifo, mc_sessionIdFifo3, mc_closedSessionIdFifo, 
             useConn, regIpAddress0, regIpAddress1, regIpAddress2, regIpAddress3, regIpAddress4, regIpAddress5, regIpAddress6, regIpAddress7, regIpAddress8, regIpAddress9, 
-            regIpPort0, regIpPort1, regIpPort2, regIpPort3, regIpPort4, regIpPort5, regIpPort6, regIpPort7, regIpPort8, regIpPort9);
+            regIpPort0, regIpPort1, regIpPort2, regIpPort3, regIpPort4, regIpPort5, regIpPort6, regIpPort7, regIpPort8, regIpPort9, 
+            ipAddressIdx_debug, useConn_debug, sessionCount_debug);
     
     // handling new data arriving (it might come from a new session), and connection closed
 	notification_handler(notifications, readRequest, mc_closedSessionIdFifo);

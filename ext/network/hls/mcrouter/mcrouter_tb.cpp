@@ -867,11 +867,13 @@ int main()
     
 	while (cycleCount < 1000)
 	{
+        ap_uint<16> a, b, c;
         mcrouter(listenPort, listenPortStatus, notifications, readRequest,
 		    rxMetaData, rxData, openConnection, openConStatus,
 			closeConnection, txMetaData, txData, txStatus, 1, 
             0x0a010101, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0x3412, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            0x3412, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+            a, b, c);
 
 #define TEST 1
 

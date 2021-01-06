@@ -159,6 +159,10 @@ create_ip -name iperf_client -vendor ethz.systems.fpga -library hls -version 1.0
 generate_target {instantiation_template} [get_files $device_ip_dir/iperf_client_ip/iperf_client_ip.xci]
 update_compile_order -fileset sources_1
 
+create_ip -name mcrouter -vendor yangz.me -library hls -version 1.0 -module_name mcrouter_ip -dir $device_ip_dir
+generate_target {instantiation_template} [get_files $device_ip_dir/mcrouter_ip/mcrouter_ip.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name arp_server_subnet -vendor ethz.systems.fpga -library hls -version 1.1 -module_name arp_server_subnet_ip -dir $device_ip_dir
 generate_target {instantiation_template} [get_files $device_ip_dir/arp_server_subnet_ip/arp_server_subnet_ip.xci]
 update_compile_order -fileset sources_1

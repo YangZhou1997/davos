@@ -103,4 +103,7 @@ void mcrouter(hls::stream<ap_uint<16> >& listenPort, hls::stream<bool>& listenPo
         	ap_uint<16>		regIpPort6,
         	ap_uint<16>		regIpPort7,
         	ap_uint<16>		regIpPort8,
-        	ap_uint<16>		regIpPort9);
+        	ap_uint<16>		regIpPort9,
+            ap_uint<16>     ipAddressIdx_debug,
+            ap_uint<16>     useConn_debug,
+            ap_uint<16>     sessionCount_debug);

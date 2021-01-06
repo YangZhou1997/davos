@@ -381,11 +381,14 @@ logic[63:0] timeInCycles;
 logic[7:0] listenCounter;
 logic[15:0] openCounter;
 logic[31:0] iperfAddresses [9:0];
-logic[16:0] iperfPorts [9:0];
+logic[15:0] iperfPorts [9:0];
 logic[63:0] timer_cycles;
 logic[63:0] iperf_execution_cycles;
 logic running;
 
+logic[15:0] ipAddressIdx_debug;
+logic[15:0] useConn_debug;
+logic[15:0] sessionCount_debug;
 
 always @(posedge user_clk) begin
    if (~user_aresetn) begin
@@ -525,6 +528,9 @@ mcrouter_ip mcrouter (
    .regIpPort7_V(iperfPorts[7]), 
    .regIpPort8_V(iperfPorts[8]), 
    .regIpPort9_V(iperfPorts[9]), 
+   .ipAddressIdx_debug_V(ipAddressIdx_debug),
+   .useConn_debug_V(useConn_debug),
+   .sessionCount_debug_V(sessionCount_debug),
    .ap_clk(user_clk),                                                          // input wire aclk
    .ap_rst_n(user_aresetn)                                                    // input wire aresetn
  );
@@ -737,9 +743,12 @@ ila_32_mixed benchmark_debug (
 	.probe26(iperf_pkg_counter[15:0]),
 	.probe27(iperf_pkg_counter[31:16]),
 	.probe28(iperf_sts_counter[15:0]),
-	.probe29(iperf_sts_counter[31:16]),
-	.probe30(iperf_sts_good_counter[15:0]),
-	.probe31(iperf_sts_good_counter[31:16])
+	// .probe29(iperf_sts_counter[31:16]),
+	// .probe30(iperf_sts_good_counter[15:0]),
+	// .probe31(iperf_sts_good_counter[31:16])
+    .probe29(ipAddressIdx_debug), 
+    .probe30(useConn_debug), 
+    .probe31(sessionCount_debug) 
 );
 
 `endif

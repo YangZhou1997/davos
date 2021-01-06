@@ -272,9 +272,7 @@ void bodyMerger(
 
     #pragma HLS ARRAY_PARTITION variable=fsmState_stashTable complete
     #pragma HLS ARRAY_PARTITION variable=sessionID_stashTable complete
-    
     #pragma HLS ARRAY_PARTITION variable=msgbody_stashTable complete
-    // #pragma HLS RESOURCE variable=msgbody_stashTable core=RAM_T2P_BRAM
     
     // admission control guarantee that there will be two same sessionID in the parser. 
     // #pragma HLS DEPENDENCE variable=fsmState_stashTable inter false
@@ -309,62 +307,52 @@ void bodyMerger(
         }
 #endif
         
+        msgBody lastMsgBody = msgbody_stashTable[slot];
+
         std::cout << "bodyMerger: currMsgHeader.bodyLen = " << currMsgHeader.bodyLen << std::endl;
         
         if(lastMsgIndicator == 2){// partial header in the end of the word
-            currMsgBodyFifo_out.write(msgBody(currSessionID));
+            lastMsgBody.reset();
+            currMsgBodyFifo_out.write(lastMsgBody);
             valid_stashTable[slot] = 1;
             fsmState_stashTable[slot] = 0;
         }
         else{
-            if(!currMsgHeader.bodyLen){ // message has no body
-                msgBodyFifo_out.write(msgBody(currSessionID));
+            if(currMsgHeader.bodyLen == 0){ // message has no body
+                lastMsgBody.reset();
+                msgBodyFifo_out.write(lastMsgBody);
                 msgHeaderFifo_out.write(currMsgHeader);
                 sessionIDFifo_out.write(currSessionID);
-                // consumed this word done. 
-                if(lastMsgIndicator){ // lastMsgIndicator must be 1
-                    currMsgBodyFifo_out.write(msgBody(currSessionID));
-                    valid_stashTable[slot] = 1;
-                    fsmState_stashTable[slot] = 0;
-                }
             }
             else{
                 if(length == 0){// full header exactly in the end of the word
                     std::cout << "bodyMerger: length=0" << std::endl;
-                    // consumed this word done. 
-                    if(lastMsgIndicator){ // lastMsgIndicator must be 1
-                        currMsgBodyFifo_out.write(msgBody(currSessionID));
-                        valid_stashTable[slot] = 1;
-                        fsmState_stashTable[slot] = 0;
-                    }
+                    lastMsgBody.reset();
                 }
                 else{
                     std::cout << "bodyMerger: startPos=" << startPos << "; length=" << length << std::endl;
-
+                    // lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
+                    lastMsgBody.body |= partialMsgBody.body;
                     if(endOfBody){
-                        msgBody lastMsgBody = msgbody_stashTable[slot];
-                        lastMsgBody.body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
                         msgBodyFifo_out.write(lastMsgBody);
                         msgHeaderFifo_out.write(currMsgHeader);
                         sessionIDFifo_out.write(currSessionID);
-                        if(lastMsgIndicator){ // lastMsgIndicator must be 1
-                            currMsgBodyFifo_out.write(msgBody(currSessionID));
-                            valid_stashTable[slot] = 1;
-                            fsmState_stashTable[slot] = 0;
-                        }
-                    }
-                    else{
-                        msgbody_stashTable[slot].body(startPos-1, startPos-length) = partialMsgBody.body(startPos-1, startPos-length);
-                        // consumed this word done. 
-                        if(lastMsgIndicator){ // lastMsgIndicator must be 1
-                            currMsgBodyFifo_out.write(msgbody_stashTable[slot]);
-                            valid_stashTable[slot] = 1;
-                            fsmState_stashTable[slot] = 0;
-                        }
+                        lastMsgBody.reset();
                     }
                 }
             }
-            
+            // parsed this word done. 
+            if(lastMsgIndicator == 1){
+                msgbody_stashTable[slot] = msgBody(lastMsgBody.currSessionID);
+
+                currMsgBodyFifo_out.write(lastMsgBody);
+                valid_stashTable[slot] = 1;
+                fsmState_stashTable[slot] = 0;
+                // lastMsgBody.reset();
+            }
+            else{
+                msgbody_stashTable[slot] = lastMsgBody;
+            }
         }
     }
 }

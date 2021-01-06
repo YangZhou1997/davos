@@ -138,10 +138,14 @@ struct msgBody {
 
         std::cout << "ext: ";
         for(int i = 0; i < extlen; i++){
+#ifndef __SYNTHESIS__
             std::cout << std::hex << std::setfill ('0') << std::setw(2) << +uint8_t(body(MAX_BODY_LEN-pos-1, MAX_BODY_LEN-pos-8));
+#endif
             pos += 8;
         }
+#ifndef __SYNTHESIS__
         std::cout << std::setw(0);
+#endif
 
         std::cout << std::endl << "key: ";
         for(int i = 0; i < keylen; i++){
