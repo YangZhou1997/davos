@@ -51,16 +51,16 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/make.tcl.in make.tcl)
 set(EXAMPLE_HLS_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.hpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.cpp 
-    # ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/parser_stateman/parser_stateman.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/parser_stateman/parser_stateman.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/parser/parser.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/parser/parser.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_32_32/hash_table_32_32.cpp 
-    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_32_32/hash_table_32_32.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp 
-    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_32_32/hash_table_32_32.hpp)
+#    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp 
+#    ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.hpp)
 #    ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_config.hpp.in)
 
 

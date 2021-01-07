@@ -385,15 +385,15 @@ void parser_stateman(
     #pragma HLS ARRAY_PARTITION variable=stashTable complete
 
     static hls::stream<htUpdateReq>       requestFifo;
-    #pragma HLS stream variable=requestFifo depth=64
+    #pragma HLS stream variable=requestFifo depth=4
     #pragma HLS DATA_PACK variable=requestFifo
     
     static hls::stream<htUpdateReq>       requestFifo_update;
-    #pragma HLS stream variable=requestFifo_update depth=64
+    #pragma HLS stream variable=requestFifo_update depth=4
     #pragma HLS DATA_PACK variable=requestFifo_update
     
     static hls::stream<htUpdateResp>       responseFifo;
-    #pragma HLS stream variable=responseFifo depth=64
+    #pragma HLS stream variable=responseFifo depth=4
     #pragma HLS DATA_PACK variable=responseFifo
 
     ht_insert(requestFifo_update, requestFifo, responseFifo, regInsertFailureCount);

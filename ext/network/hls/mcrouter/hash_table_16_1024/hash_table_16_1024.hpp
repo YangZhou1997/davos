@@ -31,7 +31,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // #include <hash_table_config.hpp>
 namespace hash_table_16_1024 {
 
-const uint32_t MAX_NUMBER_OF_ENTRIES = 10000;
+const uint32_t MAX_NUMBER_OF_ENTRIES = 1000;
 #include <math.h>
 
 //Copied from hlslib by Johannes de Fine Licht https://github.com/definelicht/hlslib/blob/master/include/hlslib/xilinx/Utility.h
@@ -48,53 +48,46 @@ const uint32_t TABLE_SIZE = (1 << TABLE_ADDRESS_BITS);
 
 const uint32_t KEY_SIZE = 16;
 const uint32_t VALUE_SIZE = 1024;
+const uint32_t RET_VALUE_SIZE = 32;
 const uint32_t MAX_TRIALS = 12;
 
 //The hash table can easily support NUM_TABLES-1 * TABLE_SIZE
 //for NUM_TABLES = 9 -> this equals to a load factor of 0.88
 
 
-template <int K>
-struct htLookupReq
+template <int K, int RV>
+struct mqPushReq
 {
    ap_uint<K>  key;
-   ap_uint<1>  source;
-   htLookupReq<K>() {}
-   htLookupReq<K>(ap_uint<K> key, ap_uint<1> source)
-      :key(key), source(source) {}
+   ap_uint<RV>  value;
+   mqPushReq<K,RV>() {}
+   mqPushReq<K,RV>(ap_uint<K> key, ap_uint<RV> value)
+      :key(key), value(value){}
 };
 
-template <int K, int V>
-struct htLookupResp
+template <int K, int RV>
+struct mqPushResp
 {
    ap_uint<K>  key;
-   ap_uint<V>  value;
+   ap_uint<RV>  value;
    bool        hit;
-   ap_uint<1>  source;
 };
 
-typedef enum {KV_DELETE, KV_UPDATE_INSERT} kvOperation;
-
-template <int K, int V>
-struct htUpdateReq
+template <int K>
+struct mqPopReq
 {
-   kvOperation op;
    ap_uint<K>  key;
-   ap_uint<V>  value;
-   ap_uint<1>  source;
-   htUpdateReq<K,V>() {}
-   htUpdateReq<K,V>(kvOperation op, ap_uint<K> key, ap_uint<V> value, ap_uint<1> source)
-      :op(op), key(key), value(value), source(source) {}
+   mqPopReq<K>() {}
+   mqPopReq<K>(ap_uint<K> key)
+      :key(key){}
 };
 
-template <int K, int V>
-struct htUpdateResp
+template <int K, int RV>
+struct mqPopResp
 {
-   kvOperation op;
    ap_uint<K>  key;
-   ap_uint<V>  value;
+   ap_uint<RV>  value;
    bool        success;
-   ap_uint<1>  source;
 };
 
 template <int K, int V>
@@ -109,17 +102,17 @@ struct htEntry
 };
 
 
-template <int K, int V>
-void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
-               hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
-               hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
-               hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
-               hls::stream<ap_uint<16> >&          regInsertFailureCount);
+template <int K, int V, int RV>
+void hash_table(hls::stream<mqPushReq<K,RV> >&    mq_push_req,
+               hls::stream<mqPopReq<K> >&         mq_pop_req,
+               hls::stream<mqPushResp<K,RV> >&    mq_push_rsp,
+               hls::stream<mqPopResp<K,RV> >&     mq_pop_rsp,
+               hls::stream<ap_uint<16> >&         regInsertFailureCount);
 
-void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
-               hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
-               hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
-               hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
-               hls::stream<ap_uint<16> >&                        regInsertFailureCount);
+void hash_table_top(hls::stream<mqPushReq<KEY_SIZE,RET_VALUE_SIZE> >&   mq_push_req,
+               hls::stream<mqPopReq<KEY_SIZE> >&                        mq_pop_req,
+               hls::stream<mqPushResp<KEY_SIZE,RET_VALUE_SIZE> >&       mq_push_rsp,
+               hls::stream<mqPopResp<KEY_SIZE,RET_VALUE_SIZE> >&        mq_pop_rsp,
+               hls::stream<ap_uint<16> >&                               regInsertFailureCount);
 
 }

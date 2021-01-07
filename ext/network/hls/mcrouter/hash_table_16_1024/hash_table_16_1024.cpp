@@ -57,56 +57,47 @@ void calculate_hashes(ap_uint<KEY_SIZE> key, ap_uint<TABLE_ADDRESS_BITS>   hashe
    }
 }
 
-template <int K, int V>
-htLookupResp<K,V> lookup(htLookupReq<K> request)
+template <int V, int RV>
+void push_val(ap_uint<V>& ht_val, ap_uint<RV>& val){
+#pragma HLS INLINE
+    ap_uint<RV> idx = ht_val(RV-1, 0);
+#ifndef __SYNTHESIS__
+    if(idx >= V/RV){
+        std::cout << "[ERROR] push_val overflow" << std::endl;
+        return;
+    }
+#endif
+    ht_val(V-idx*RV-1, V-idx*RV-RV) = val;
+    ht_val(RV-1, 0) = idx+1;
+}
+
+template <int V, int RV>
+void pop_val(ap_uint<V>& ht_val, ap_uint<RV>& val){
+#pragma HLS INLINE
+    ap_uint<RV> idx = ht_val(RV-1, 0);
+#ifndef __SYNTHESIS__
+    if(idx == 0){
+        std::cout << "[ERROR] pop_val underflow" << std::endl;
+        return;
+    }
+#endif
+    val = ht_val(V-1, V-RV);
+    ht_val <<= RV;
+    ht_val(RV-1, 0) = idx-1;
+}
+
+template <int K, int V, int RV>
+mqPushResp<K,RV> push(mqPushReq<K,RV> request, hls::stream<ap_uint<16> >& regInsertFailureCount)
 {
 #pragma HLS INLINE
-   
+
    htEntry<K,V> currentEntries[NUM_TABLES];
    #pragma HLS ARRAY_PARTITION variable=currentEntries complete
    ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
-   htLookupResp<K,V> response;
+   mqPushResp<K,RV> response;
    response.key = request.key;
-   response.source = request.source;
+   response.value = request.value;
    response.hit = false;
-   
-   calculate_hashes(request.key, hashes);
-   //Look for matching key
-   int slot = -1;
-   for (int i = 0; i < NUM_TABLES; i++)
-   {
-      #pragma HLS UNROLL
-      currentEntries[i] = cuckooTables[i][hashes[i]];
-      if (currentEntries[i].valid && currentEntries[i].key == request.key)
-      {
-          std::cout << "lookup currentEntries[i].key = " << currentEntries[i].key << std::endl;
-         slot = i;
-      }
-   }
-   //Check if key found
-   if (slot != -1)
-   {
-      response.value = currentEntries[slot].value;
-      response.hit = true;
-   }
-
-   return response;
-}
-
-template <int K, int V>
-htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
-{
-#pragma HLS INLINE
-
-   htEntry<K,V> currentEntries[NUM_TABLES];
-   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
-   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
-   htUpdateResp<K,V> response;
-   response.op = request.op;
-   response.key = request.key;
-   response.value = request.value;
-   response.source = request.source;
-   response.success = false;
 
    calculate_hashes(request.key, hashes);
    //Look for matching key
@@ -116,59 +107,29 @@ htUpdateResp<K,V> remove(htUpdateReq<K,V> request)
       currentEntries[i] = cuckooTables[i][hashes[i]];
       if(currentEntries[i].valid && currentEntries[i].key == request.key)
       {
-         std::cout << "delete currentEntries[i].key = " << currentEntries[i].key << std::endl;
-         currentEntries[i].valid = false;
-         response.success = true;
-      }
-      cuckooTables[i][hashes[i]] = currentEntries[i];
-   }
-
-   return response;
-}
-
-template <int K, int V>
-htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
-                     hls::stream<ap_uint<16> >& regInsertFailureCount)
-{
-#pragma HLS INLINE
-
-   htEntry<K,V> currentEntries[NUM_TABLES];
-   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
-   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
-   htUpdateResp<K,V> response;
-   response.op = request.op;
-   response.key = request.key;
-   response.value = request.value;
-   response.source = request.source;
-   response.success = false;
-
-   calculate_hashes(request.key, hashes);
-   //Look for matching key
-   for (int i = 0; i < NUM_TABLES; i++)
-   {
-      #pragma HLS UNROLL
-      currentEntries[i] = cuckooTables[i][hashes[i]];
-      if(currentEntries[i].valid && currentEntries[i].key == request.key)
-      {
-         std::cout << "update_insert currentEntries[i].key = " << currentEntries[i].key << std::endl;
-         currentEntries[i].value = request.value;
-         response.success = true;
+         std::cout << "push currentEntries[i].key = " << currentEntries[i].key << std::endl;
+        //  currentEntries[i].value = request.value;
+         push_val<V,RV>(currentEntries[i].value, request.value);
+         response.hit = true;
       }
       cuckooTables[i][hashes[i]] = currentEntries[i];
    }
 
     // update succeeds, return 
-    if(response.success)
+    if(response.hit)
         return response;
 
-     std::cout << "update_insert request.key = " << request.key << std::endl;
+     std::cout << "push request.key = " << request.key << std::endl;
     
     // update fails, do inserting
     static ap_uint<8> victimIdx = 0;
     static ap_uint<1> victimBit = 0;
     static uint16_t insertFailureCounter = 0;
 
-    htEntry<K,V> currentEntry(request.key, request.value);
+    ap_uint<V> init_htval = 0;
+    init_htval(RV-1, 0) = 1; // setup idx
+    init_htval(V-1, V-RV) = request.value; // setup the first value
+    htEntry<K,V> currentEntry(request.key, init_htval);
     victimIdx = 0;
     //Try multiple times
     insertLoop: for (int j = 0; j < MAX_TRIALS; j++)
@@ -194,7 +155,7 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
         if (slot != -1)
         {
             currentEntries[slot] = currentEntry;
-            response.success = true;
+            response.hit = true;
         }
         else
         {
@@ -215,10 +176,10 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
         }
 
         victimBit++;
-        if (response.success)
+        if (response.hit)
             break;
     }//for
-    if (!response.success)
+    if (!response.hit)
     {
         std::cout << "REACHED MAX TRIALS: " << request.key << " " << currentEntry.key << std::endl;
         insertFailureCounter++;
@@ -227,12 +188,49 @@ htUpdateResp<K,V> update_insert(htUpdateReq<K,V> request,
     return response;
 }
 
-template <int K, int V>
-void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
-               hls::stream<htUpdateReq<K,V> >&     s_axis_upd_req,
-               hls::stream<htLookupResp<K,V> >&    m_axis_lup_rsp,
-               hls::stream<htUpdateResp<K,V> >&    m_axis_upd_rsp,
-               hls::stream<ap_uint<16> >&          regInsertFailureCount)
+template <int K, int V, int RV>
+mqPopResp<K,RV> pop(mqPopReq<K> request)
+{
+#pragma HLS INLINE
+   
+   htEntry<K,V> currentEntries[NUM_TABLES];
+   #pragma HLS ARRAY_PARTITION variable=currentEntries complete
+   ap_uint<TABLE_ADDRESS_BITS> hashes[NUM_TABLES];
+   mqPopResp<K,RV> response;
+   response.key = request.key;
+   response.success = false;
+   
+   calculate_hashes(request.key, hashes);
+   //Look for matching key
+   int slot = -1;
+   for (int i = 0; i < NUM_TABLES; i++)
+   {
+      #pragma HLS UNROLL
+      currentEntries[i] = cuckooTables[i][hashes[i]];
+      if (currentEntries[i].valid && currentEntries[i].key == request.key)
+      {
+          std::cout << "lookup currentEntries[i].key = " << currentEntries[i].key << std::endl;
+         slot = i;
+      }
+   }
+   //Check if key found
+   if (slot != -1)
+   {
+    //   response.value = currentEntries[slot].value;
+      pop_val<V,RV>(currentEntries[slot].value, response.value);
+      cuckooTables[slot][hashes[slot]].value = currentEntries[slot].value;
+      response.success = true;
+   }
+
+   return response;
+}
+
+template <int K, int V, int RV>
+void hash_table(hls::stream<mqPushReq<K,RV> >&    mq_push_req,
+               hls::stream<mqPopReq<K> >&         mq_pop_req,
+               hls::stream<mqPushResp<K,RV> >&    mq_push_rsp,
+               hls::stream<mqPopResp<K,RV> >&     mq_pop_rsp,
+               hls::stream<ap_uint<16> >&        regInsertFailureCount)
 {
 // #pragma HLS PIPELINE II=1
 // #pragma HLS INLINE off
@@ -243,38 +241,30 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
    #pragma HLS RESOURCE variable=cuckooTables core=RAM_2P_BRAM
    #pragma HLS ARRAY_PARTITION variable=cuckooTables complete dim=1
 
-   if (!s_axis_lup_req.empty())
+   if (!mq_push_req.empty())
    {
-      htLookupReq<K> request = s_axis_lup_req.read();
-      htLookupResp<K,V> response = lookup<K,V>(request);
-      m_axis_lup_rsp.write(response);
+      mqPushReq<K,RV> request = mq_push_req.read();
+      mqPushResp<K,RV> response = push<K,V,RV>(request, regInsertFailureCount);
+      mq_push_rsp.write(response);
    }
-   else if (!s_axis_upd_req.empty())
+   else if (!mq_pop_req.empty())
    {
-      htUpdateReq<K,V> request = s_axis_upd_req.read();
-      if(request.op == KV_UPDATE_INSERT){
-          std::cout << "update_insert" << std::endl;
-         htUpdateResp<K,V> response = update_insert<K,V>(request, regInsertFailureCount);
-         m_axis_upd_rsp.write(response);
-      }
-      else if(request.op == KV_DELETE) //DELETE
-      {
-         htUpdateResp<K,V> response = remove<K,V>(request);
-         m_axis_upd_rsp.write(response);
-      }
+      mqPopReq<K> request = mq_pop_req.read();
+      mqPopResp<K,RV> response = pop<K,V,RV>(request);
+      mq_pop_rsp.write(response);
    }
 }
 
-void hash_table_top(hls::stream<htLookupReq<KEY_SIZE> >&      s_axis_lup_req,
-               hls::stream<htUpdateReq<KEY_SIZE,VALUE_SIZE> >&     s_axis_upd_req,
-               hls::stream<htLookupResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_lup_rsp,
-               hls::stream<htUpdateResp<KEY_SIZE,VALUE_SIZE> >&    m_axis_upd_rsp,
-               hls::stream<ap_uint<16> >&                        regInsertFailureCount)
+void hash_table_top(hls::stream<mqPushReq<KEY_SIZE,RET_VALUE_SIZE> >&   mq_push_req,
+               hls::stream<mqPopReq<KEY_SIZE> >&                        mq_pop_req,
+               hls::stream<mqPushResp<KEY_SIZE,RET_VALUE_SIZE> >&       mq_push_rsp,
+               hls::stream<mqPopResp<KEY_SIZE,RET_VALUE_SIZE> >&        mq_pop_rsp,
+               hls::stream<ap_uint<16> >&                               regInsertFailureCount)
 {
 // #pragma HLS PIPELINE II=1
 #pragma HLS INLINE
 
-    hash_table<KEY_SIZE, VALUE_SIZE>(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
+    hash_table<KEY_SIZE, VALUE_SIZE, RET_VALUE_SIZE>(mq_push_req, mq_pop_req, mq_push_rsp, mq_pop_rsp, regInsertFailureCount);
 }
 
 }

@@ -9,9 +9,9 @@ set_top ${PROJECT_NAME}
 
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/../axi_utils.cpp
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
-# add_files ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
+add_files ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_32_32/hash_table_32_32.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
-add_files ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
+#add_files ${CMAKE_CURRENT_SOURCE_DIR}/multi_queue/multi_queue.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/parser_stateman/parser_stateman.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 add_files ${CMAKE_CURRENT_SOURCE_DIR}/parser/parser.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 

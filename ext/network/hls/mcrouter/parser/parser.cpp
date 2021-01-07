@@ -406,34 +406,34 @@ void msgStripper(
 #pragma HLS DATAFLOW disable_start_propagation
     
     static hls::stream<net_axis<DATA_WIDTH> > currWordFifo_inner;
-    #pragma HLS stream variable=currWordFifo_inner depth=8
+    #pragma HLS stream variable=currWordFifo_inner depth=4
     static hls::stream<ap_uint<32> > currWordValidLenFifo_inner;
-    #pragma HLS stream variable=currWordValidLenFifo_inner depth=8
+    #pragma HLS stream variable=currWordValidLenFifo_inner depth=4
     static hls::stream<ap_uint<32> > currWordValidLen_initFifo_inner;
-    #pragma HLS stream variable=currWordValidLen_initFifo_inner depth=8
+    #pragma HLS stream variable=currWordValidLen_initFifo_inner depth=4
     static hls::stream<sessionState> currSessionStateFifo_inner;
-    #pragma HLS stream variable=currSessionStateFifo_inner depth=8
+    #pragma HLS stream variable=currSessionStateFifo_inner depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_inner
     
     static hls::stream<net_axis<DATA_WIDTH> > currWordFifo_in2;
-    #pragma HLS stream variable=currWordFifo_in2 depth=8
+    #pragma HLS stream variable=currWordFifo_in2 depth=4
     static hls::stream<ap_uint<32> > currWordValidLenFifo_in2;
-    #pragma HLS stream variable=currWordValidLenFifo_in2 depth=8
+    #pragma HLS stream variable=currWordValidLenFifo_in2 depth=4
     static hls::stream<ap_uint<32> > currWordValidLen_initFifo_in2;
-    #pragma HLS stream variable=currWordValidLen_initFifo_in2 depth=8
+    #pragma HLS stream variable=currWordValidLen_initFifo_in2 depth=4
     static hls::stream<sessionState> currSessionStateFifo_in2;
-    #pragma HLS stream variable=currSessionStateFifo_in2 depth=8
+    #pragma HLS stream variable=currSessionStateFifo_in2 depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_in2
 
     static hls::stream<bodyExtState> bodyExtractorStateFifo;
-    #pragma HLS stream variable=bodyExtractorStateFifo depth=8
+    #pragma HLS stream variable=bodyExtractorStateFifo depth=4
     #pragma HLS DATA_PACK variable=bodyExtractorStateFifo
 
     static hls::stream<bodyMergeState> bodyMergerStateFifo;
-    #pragma HLS stream variable=bodyMergerStateFifo depth=8
+    #pragma HLS stream variable=bodyMergerStateFifo depth=4
     #pragma HLS DATA_PACK variable=bodyMergerStateFifo
     static hls::stream<msgBody> msgBodyFifo_bodyMerger;
-    #pragma HLS stream variable=msgBodyFifo_bodyMerger depth=8
+    #pragma HLS stream variable=msgBodyFifo_bodyMerger depth=4
     #pragma HLS DATA_PACK variable=msgBodyFifo_bodyMerger
     
 
@@ -491,14 +491,14 @@ void parser(
 #pragma HLS INTERFACE ap_ctrl_none port=return
     
     static hls::stream<net_axis<DATA_WIDTH> > currWordFifo_msgStripper;
-    #pragma HLS stream variable=currWordFifo_msgStripper depth=8
+    #pragma HLS stream variable=currWordFifo_msgStripper depth=4
     #pragma HLS DATA_PACK variable=currWordFifo_msgStripper
 
     static hls::stream<ap_uint<32> >          currWordValidLenFifo_msgStripper;
-    #pragma HLS stream variable=currWordValidLenFifo_msgStripper depth=8
+    #pragma HLS stream variable=currWordValidLenFifo_msgStripper depth=4
         
     static hls::stream<ap_uint<32> >          currWordValidLen_initFifo_msgStripper;
-    #pragma HLS stream variable=currWordValidLen_initFifo_msgStripper depth=8
+    #pragma HLS stream variable=currWordValidLen_initFifo_msgStripper depth=4
 
     wordLen_fwd(currWordFifo, currWordFifo_msgStripper, currWordValidLenFifo_msgStripper, currWordValidLen_initFifo_msgStripper);
 
