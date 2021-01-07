@@ -1259,12 +1259,12 @@ void mcrouter(
     static hls::stream<msgHeader>		    mc_msgHeaderFifo1("mc_msgHeaderFifo1");
 	static hls::stream<msgBody>		        mc_msgBodyFifo0("mc_msgBodyFifo0");
 	static hls::stream<msgBody>		        mc_msgBodyFifo1("mc_msgBodyFifo1");
-    #pragma HLS stream variable=mc_sessionIdFifo0 depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo1 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo0 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo1 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo0 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo1 depth=4
+    #pragma HLS stream variable=mc_sessionIdFifo0 depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo1 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo0 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo1 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo0 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo1 depth=2
 
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo4("mc_sessionIdFifo4");
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo5("mc_sessionIdFifo5");
@@ -1278,24 +1278,24 @@ void mcrouter(
 	static hls::stream<msgBody>		        mc_msgBodyFifo5("mc_msgBodyFifo5");
     static hls::stream<msgBody>		        mc_msgBodyFifo6("mc_msgBodyFifo6");
 	static hls::stream<msgBody>		        mc_msgBodyFifo7("mc_msgBodyFifo7");
-    #pragma HLS stream variable=mc_sessionIdFifo4 depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo5 depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo6 depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo7 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo4 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo5 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo6 depth=4
-    #pragma HLS stream variable=mc_msgHeaderFifo7 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo4 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo5 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo6 depth=4
-    #pragma HLS stream variable=mc_msgBodyFifo7 depth=4
+    #pragma HLS stream variable=mc_sessionIdFifo4 depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo5 depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo6 depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo7 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo4 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo5 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo6 depth=2
+    #pragma HLS stream variable=mc_msgHeaderFifo7 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo4 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo5 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo6 depth=2
+    #pragma HLS stream variable=mc_msgBodyFifo7 depth=2
 
 
 	static hls::stream<ap_uint<MAX_KEY_LEN> >		mc_keyFifo("mc_keyFifo");
 	static hls::stream<ap_uint<32> >		mc_hashFifo("mc_hashFifo");
-    #pragma HLS stream variable=mc_keyFifo depth=4
-    #pragma HLS stream variable=mc_hashFifo depth=4
+    #pragma HLS stream variable=mc_keyFifo depth=2
+    #pragma HLS stream variable=mc_hashFifo depth=2
 
 
     static hls::stream<parser_htLookupReq>    s_axis_lup_req;
@@ -1303,11 +1303,11 @@ void mcrouter(
     static hls::stream<parser_htLookupResp>   m_axis_lup_rsp;
     static hls::stream<parser_htUpdateResp>   m_axis_upd_rsp;
     static hls::stream<ap_uint<16> > regInsertFailureCount;
-    #pragma HLS stream variable=s_axis_lup_req depth=4
-    #pragma HLS stream variable=s_axis_upd_req depth=4
-    #pragma HLS stream variable=m_axis_lup_rsp depth=4
-    #pragma HLS stream variable=m_axis_upd_rsp depth=4
-    #pragma HLS stream variable=regInsertFailureCount depth=4
+    #pragma HLS stream variable=s_axis_lup_req depth=2
+    #pragma HLS stream variable=s_axis_upd_req depth=2
+    #pragma HLS stream variable=m_axis_lup_rsp depth=2
+    #pragma HLS stream variable=m_axis_upd_rsp depth=2
+    #pragma HLS stream variable=regInsertFailureCount depth=2
     #pragma HLS DATA_PACK variable=s_axis_lup_req
     #pragma HLS DATA_PACK variable=s_axis_upd_req
     #pragma HLS DATA_PACK variable=m_axis_lup_rsp
@@ -1319,11 +1319,11 @@ void mcrouter(
     static hls::stream<hash_table_32_32::htLookupResp<32,32> >   m_axis_lup_rsp1;
     static hls::stream<hash_table_32_32::htUpdateResp<32,32> >   m_axis_upd_rsp1;
     static hls::stream<ap_uint<16> > regInsertFailureCount1;
-    #pragma HLS stream variable=s_axis_lup_req1 depth=4
-    #pragma HLS stream variable=s_axis_upd_req1 depth=4
-    #pragma HLS stream variable=m_axis_lup_rsp1 depth=4
-    #pragma HLS stream variable=m_axis_upd_rsp1 depth=4
-    #pragma HLS stream variable=regInsertFailureCount1 depth=4
+    #pragma HLS stream variable=s_axis_lup_req1 depth=2
+    #pragma HLS stream variable=s_axis_upd_req1 depth=2
+    #pragma HLS stream variable=m_axis_lup_rsp1 depth=2
+    #pragma HLS stream variable=m_axis_upd_rsp1 depth=2
+    #pragma HLS stream variable=regInsertFailureCount1 depth=2
     #pragma HLS DATA_PACK variable=s_axis_lup_req1
     #pragma HLS DATA_PACK variable=s_axis_upd_req1
     #pragma HLS DATA_PACK variable=m_axis_lup_rsp1
@@ -1333,9 +1333,9 @@ void mcrouter(
 	// static hls::stream<mqInsertReq<ap_uint<32>> >	multiQueue_push("multiQueue_push");
 	// static hls::stream<hash_table_16_1024::mqPopReq>					multiQueue_pop_req("multiQueue_pop_req");
 	// static hls::stream<ap_uint<32>>					multiQueue_rsp("multiQueue_rsp");
-    // #pragma HLS stream variable=multiQueue_push depth=4
-    // #pragma HLS stream variable=multiQueue_pop_req depth=4
-    // #pragma HLS stream variable=multiQueue_rsp depth=4
+    // #pragma HLS stream variable=multiQueue_push depth=2
+    // #pragma HLS stream variable=multiQueue_pop_req depth=2
+    // #pragma HLS stream variable=multiQueue_rsp depth=2
     // #pragma HLS DATA_PACK variable=multiQueue_push
     // #pragma HLS DATA_PACK variable=multiQueue_pop_req
     // #pragma HLS DATA_PACK variable=multiQueue_rsp
@@ -1344,11 +1344,11 @@ void mcrouter(
     static hls::stream<hash_table_16_1024::mqPushResp<16,32> >   mq_push_rsp("mq_push_rsp");
     static hls::stream<hash_table_16_1024::mqPopResp<16,32> >    mq_pop_rsp("mq_pop_rsp");
     static hls::stream<ap_uint<16> >         regInsertFailureCount2;
-    #pragma HLS stream variable=mq_push_req depth=4
-    #pragma HLS stream variable=mq_pop_req depth=4
-    #pragma HLS stream variable=mq_push_rsp depth=4
-    #pragma HLS stream variable=mq_pop_rsp depth=4
-    #pragma HLS stream variable=regInsertFailureCount2 depth=4
+    #pragma HLS stream variable=mq_push_req depth=2
+    #pragma HLS stream variable=mq_pop_req depth=2
+    #pragma HLS stream variable=mq_push_rsp depth=2
+    #pragma HLS stream variable=mq_pop_rsp depth=2
+    #pragma HLS stream variable=regInsertFailureCount2 depth=2
     #pragma HLS DATA_PACK variable=mq_push_req
     #pragma HLS DATA_PACK variable=mq_pop_req
     #pragma HLS DATA_PACK variable=mq_push_rsp
@@ -1363,49 +1363,49 @@ void mcrouter(
 	static hls::stream<ap_uint<16> >	mc_idxFifo("mc_idxFifo");
 	static hls::stream<ap_uint<16> >	mc_sessionIdFifo3("mc_sessionIdFifo3");
 	static hls::stream<ap_uint<16> >    mc_closedSessionIdFifo("mc_closedSessionIdFifo");
-    #pragma HLS stream variable=mc_cmdFifo depth=4
-    #pragma HLS stream variable=mc_sessionCountFifo depth=4
-    #pragma HLS stream variable=mc_sessionIdStreamFifo depth=4
-    #pragma HLS stream variable=mc_hashValFifo depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo2 depth=4
-    #pragma HLS stream variable=mc_idxFifo depth=4
-    #pragma HLS stream variable=mc_sessionIdFifo3 depth=4
-    #pragma HLS stream variable=mc_closedSessionIdFifo depth=4
+    #pragma HLS stream variable=mc_cmdFifo depth=2
+    #pragma HLS stream variable=mc_sessionCountFifo depth=2
+    #pragma HLS stream variable=mc_sessionIdStreamFifo depth=2
+    #pragma HLS stream variable=mc_hashValFifo depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo2 depth=2
+    #pragma HLS stream variable=mc_idxFifo depth=2
+    #pragma HLS stream variable=mc_sessionIdFifo3 depth=2
+    #pragma HLS stream variable=mc_closedSessionIdFifo depth=2
 
 
     static hls::stream<ap_uint<MEMCACHED_HDRLEN*8+MAX_BODY_LEN> > mc_sendBufFifo("mc_sendBufFifo");
-    #pragma HLS stream variable=mc_sendBufFifo depth=4
+    #pragma HLS stream variable=mc_sendBufFifo depth=2
     static hls::stream<ap_uint<32> > mc_lengthFifo("mc_lengthFifo");
-    #pragma HLS stream variable=mc_lengthFifo depth=4
+    #pragma HLS stream variable=mc_lengthFifo depth=2
     static hls::stream<ap_uint<32> > mc_msgIDFifo("mc_msgIDFifo");
-    #pragma HLS stream variable=mc_msgIDFifo depth=4
+    #pragma HLS stream variable=mc_msgIDFifo depth=2
 	static hls::stream<ap_uint<16> >	mc_sessionIdFifo8("mc_sessionIdFifo8");
-    #pragma HLS stream variable=mc_sessionIdFifo8 depth=4
+    #pragma HLS stream variable=mc_sessionIdFifo8 depth=2
 
     static hls::stream<ap_uint<16> > sessionStashLookupFifo("sessionStashLookupFifo");
-    #pragma HLS stream variable=sessionStashLookupFifo depth=4
+    #pragma HLS stream variable=sessionStashLookupFifo depth=2
     static hls::stream<bool > sessionStashLookupRspFifo("sessionStashLookupRspFifo");
-    #pragma HLS stream variable=sessionStashLookupRspFifo depth=4
+    #pragma HLS stream variable=sessionStashLookupRspFifo depth=2
     static hls::stream<ap_uint<16> > rxMetaData_sr("rxMetaData_sr");
-    #pragma HLS stream variable=rxMetaData_sr depth=4
+    #pragma HLS stream variable=rxMetaData_sr depth=2
     static hls::stream<net_axis<DATA_WIDTH> > rxData_sr("rxData_sr");
-    #pragma HLS stream variable=rxData_sr depth=4
+    #pragma HLS stream variable=rxData_sr depth=2
     #pragma HLS DATA_PACK variable=rxData_sr
     
     static hls::stream<net_axis<DATA_WIDTH> > currWordFiFo_parser("currWordFiFo_parser");
-    #pragma HLS stream variable=currWordFiFo_parser depth=4
+    #pragma HLS stream variable=currWordFiFo_parser depth=2
     #pragma HLS DATA_PACK variable=currWordFiFo_parser
     static hls::stream<sessionState> currSessionStateFifo_parser("currSessionStateFifo_parser");
-    #pragma HLS stream variable=currSessionStateFifo_parser depth=4
+    #pragma HLS stream variable=currSessionStateFifo_parser depth=2
     #pragma HLS DATA_PACK variable=currSessionStateFifo_parser
     static hls::stream<msgBody> currMsgBodyFifo_parser("currMsgBodyFifo_parser");
-    #pragma HLS stream variable=currMsgBodyFifo_parser depth=4
+    #pragma HLS stream variable=currMsgBodyFifo_parser depth=2
     #pragma HLS DATA_PACK variable=currMsgBodyFifo_parser
     static hls::stream<sessionState> currSessionStateFifo_sr("currSessionStateFifo_sr");
-    #pragma HLS stream variable=currSessionStateFifo_sr depth=4
+    #pragma HLS stream variable=currSessionStateFifo_sr depth=2
     #pragma HLS DATA_PACK variable=currSessionStateFifo_sr
     static hls::stream<msgBody> currMsgBodyFifo_sr("currMsgBodyFifo_sr");
-    #pragma HLS stream variable=currMsgBodyFifo_sr depth=4
+    #pragma HLS stream variable=currMsgBodyFifo_sr depth=2
     #pragma HLS DATA_PACK variable=currMsgBodyFifo_sr
 
 

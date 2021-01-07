@@ -30,7 +30,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../../axi_utils.hpp"
 #include "../parser/parser.hpp"
 
-const uint32_t PARSER_MAX_NUMBER_OF_ENTRIES = 1000;
+const uint32_t PARSER_MAX_NUMBER_OF_ENTRIES = 100;
 #include <math.h>
 
 //Copied from hlslib by Johannes de Fine Licht https://github.com/definelicht/hlslib/blob/master/include/hlslib/xilinx/Utility.h
