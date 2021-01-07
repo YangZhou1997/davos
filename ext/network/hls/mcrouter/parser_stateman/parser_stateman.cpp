@@ -202,7 +202,7 @@ void parser_stateman(
 
 //Global arrays
 #pragma HLS ARRAY_PARTITION variable=parser_tabulation_table complete dim=1
-#pragma HLS RESOURCE variable=parser_cuckooTables core=RAM_2P_BRAM
+#pragma HLS RESOURCE variable=parser_cuckooTables core=RAM_2P_URAM
 #pragma HLS ARRAY_PARTITION variable=parser_cuckooTables complete dim=1
     
     if (!s_axis_upd_req.empty())

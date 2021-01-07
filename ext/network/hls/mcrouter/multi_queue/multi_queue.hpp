@@ -124,7 +124,7 @@ void mq_pointer_table(	hls::stream<mqPointerReq>&			pointerReqFifo,
 #pragma HLS INLINE off
 
 	static mqPointerEntry ptr_table[NUM_QUEUES];
-	#pragma HLS RESOURCE variable=ptr_table core=RAM_T2P_BRAM
+	#pragma HLS RESOURCE variable=ptr_table core=RAM_T2P_URAM
 	//#pragma HLS DEPENDENCE variable=ptr_table inter false
 
 	static ap_uint<16> mq_lockedKey;
@@ -201,7 +201,7 @@ void mq_meta_table(	hls::stream<mqMetaReq<T> >&		meta_upd_req,
 #pragma HLS INLINE off
 
 	static mqMetaEntry<T> meta_table[MULTI_QUEUE_SIZE];
-	#pragma HLS RESOURCE variable=meta_table core=RAM_T2P_BRAM
+	#pragma HLS RESOURCE variable=meta_table core=RAM_T2P_URAM
 	//#pragma HLS DEPENDENCE variable=meta_table inter false
 	mqMetaReq<T> req;
 

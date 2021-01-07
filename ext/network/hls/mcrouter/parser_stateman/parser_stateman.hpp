@@ -41,7 +41,7 @@ constexpr unsigned long parser_ConstLog2(unsigned long val) {
 const uint32_t PARSER_MAX_KEY_SIZE = 64;
 const uint32_t PARSER_MAX_ADDRESS_BITS = 16;
 
-const uint32_t PARSER_NUM_TABLES = 9;
+const uint32_t PARSER_NUM_TABLES = 4;
 const uint32_t PARSER_TABLE_ADDRESS_BITS = parser_ConstLog2(PARSER_MAX_NUMBER_OF_ENTRIES/(PARSER_NUM_TABLES-1));
 const uint32_t PARSER_TABLE_SIZE = (1 << PARSER_TABLE_ADDRESS_BITS);
 

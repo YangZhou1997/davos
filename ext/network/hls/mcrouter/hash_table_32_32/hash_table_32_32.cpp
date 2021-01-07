@@ -31,7 +31,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // using namespace hls;
 namespace hash_table_32_32 {
 
-const ap_uint<MAX_ADDRESS_BITS> tabulation_table[NUM_TABLES][2][MAX_KEY_SIZE] = {
+const ap_uint<MAX_ADDRESS_BITS> tabulation_table[NUM_TABLES][2][KEY_SIZE] = {
    #include "tabulation_table.txt"
 };
 
@@ -248,7 +248,7 @@ void hash_table(hls::stream<htLookupReq<K> >&      s_axis_lup_req,
 
    //Global arrays
    #pragma HLS ARRAY_PARTITION variable=tabulation_table complete dim=1
-   #pragma HLS RESOURCE variable=cuckooTables core=RAM_2P_BRAM
+   #pragma HLS RESOURCE variable=cuckooTables core=RAM_2P_URAM
    #pragma HLS ARRAY_PARTITION variable=cuckooTables complete dim=1
 
    if (!s_axis_lup_req.empty())

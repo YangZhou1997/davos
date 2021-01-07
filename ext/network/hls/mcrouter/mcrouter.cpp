@@ -121,11 +121,11 @@ static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
 // static SoftTkoCount sessionState[];
 
 // !!! do not specify RAM_T2P_BRAM -- let HLS automatically use register with mux. 
-#pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_BRAM
+#pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_URAM
 #pragma HLS ARRAY_PARTITION variable=connectedSessions complete
 #pragma HLS DEPENDENCE variable=connectedSessions inter false
 
-#pragma HLS RESOURCE variable=connectedSessionsSts core=RAM_T2P_BRAM
+#pragma HLS RESOURCE variable=connectedSessionsSts core=RAM_T2P_URAM
 #pragma HLS ARRAY_PARTITION variable=connectedSessionsSts complete
 #pragma HLS DEPENDENCE variable=connectedSessionsSts inter false
 
