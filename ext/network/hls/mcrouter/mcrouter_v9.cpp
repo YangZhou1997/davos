@@ -554,59 +554,48 @@ void state_recovery(
 #define NUM_WAITING_Q 4
 #define BITS_WAITING_Q 2
 
-// multile queues 
-static hls::stream<ap_uint<16> > sessionWaitingQueues[NUM_WAITING_Q];
+// each waiting queue has depth of 4
+#define DEPTH_WAITING_Q 4
+#define SIZE_WAITING_Q (DEPTH_WAITING_Q*16+16)
+static ap_uint<SIZE_WAITING_Q> sessionWaitingQueues[NUM_WAITING_Q];
 static hls::stream<net_axis<DATA_WIDTH> > wordWaitingQueues[NUM_WAITING_Q];
-static ap_uint<16> buffered_sessionWaiting[NUM_WAITING_Q];
 
 bool sessionWaiting_empty(uint32_t slot){
 #pragma HLS INLINE
-    return ((buffered_sessionWaiting[slot] == 0) && sessionWaitingQueues[slot].empty());
-    // return (buffered_sessionWaiting[slot] == 0);
+    return (sessionWaitingQueues[slot](15, 0) == 0);
 }
 
 bool sessionWaiting_full(uint32_t slot){
 #pragma HLS INLINE
-    return ((buffered_sessionWaiting[slot] != 0) && sessionWaitingQueues[slot].full());
-}
-
-// You must have checked empty() before; 
-ap_uint<16> sessionWaiting_pop(uint32_t slot){
-#pragma HLS INLINE
-    // ap_uint<16> sessionID = buffered_sessionWaiting[slot];
-    if(!sessionWaitingQueues[slot].empty()){
-        buffered_sessionWaiting[slot] = sessionWaitingQueues[slot].read();
-    }
-    else{
-        buffered_sessionWaiting[slot] = 0;
-    }
-    // return sessionID;
+    return (sessionWaitingQueues[slot](15, 0) >= DEPTH_WAITING_Q);
 }
 
 // You must have checked empty() before; 
 ap_uint<16> sessionWaiting_peek(uint32_t slot){
 #pragma HLS INLINE
-    ap_uint<16> sessionID = buffered_sessionWaiting[slot];
-    if(sessionID == 0){
-        ap_uint<16> sessionID2 = sessionWaitingQueues[slot].read();
-        buffered_sessionWaiting[slot] = sessionID2;
-        return sessionID2;
-    }
-    else{
-        return sessionID;
-    }
-    // return buffered_sessionWaiting[slot];
+    return sessionWaitingQueues[slot](SIZE_WAITING_Q-1, SIZE_WAITING_Q-16);
 }
 
+// You must have checked empty() before; 
+void sessionWaiting_pop(uint32_t slot){
+#pragma HLS INLINE
+    ap_uint<SIZE_WAITING_Q> tmpQ = sessionWaitingQueues[slot];
+    ap_uint<16> idx = tmpQ(15, 0);
+    tmpQ <<= 16;
+    tmpQ(15, 0) = idx-1;
+    sessionWaitingQueues[slot] = tmpQ;
+}
+
+// You must have checked full() before; 
 void sessionWaiting_write(uint32_t slot, ap_uint<16> val){
 #pragma HLS INLINE
-    // if(buffered_sessionWaiting[slot] == 0){
-    //     buffered_sessionWaiting[slot] = val;
-    // }
-    // else{
-        sessionWaitingQueues[slot].write(val);
-    // }
+    ap_uint<SIZE_WAITING_Q> tmpQ = sessionWaitingQueues[slot];
+    ap_uint<16> idx = tmpQ(15, 0);
+    tmpQ(SIZE_WAITING_Q-idx*16-1, SIZE_WAITING_Q-idx*16-16) = val;
+    tmpQ(15, 0) = idx+1;
+    sessionWaitingQueues[slot] = tmpQ;
 }
+
 
 // hashing each session with words into multiple waiting queue
 void admission_control1(
@@ -620,13 +609,7 @@ void admission_control1(
     // #pragma HLS ARRAY_PARTITION variable=ac_parsingState1 complete
     // #pragma HLS ARRAY_PARTITION variable=ac_parsingState2 complete
     
-
     // static value gets inited to zero by default. 
-    #pragma HLS stream variable=sessionWaitingQueues[0] depth=4
-    #pragma HLS stream variable=sessionWaitingQueues[1] depth=4
-    #pragma HLS stream variable=sessionWaitingQueues[2] depth=4
-    #pragma HLS stream variable=sessionWaitingQueues[3] depth=4
-    
     #pragma HLS stream variable=wordWaitingQueues[0] depth=8
     #pragma HLS stream variable=wordWaitingQueues[1] depth=8
     #pragma HLS stream variable=wordWaitingQueues[2] depth=8
@@ -634,19 +617,32 @@ void admission_control1(
     
     static ap_uint<4> fsmState = 0;
     static ap_uint<16> hashIdx = 0;
+    static ap_uint<16> sessionID = 0;
 
     switch(fsmState){
         case 0:{
             if(!rxMetaData.empty()){
-                ap_uint<16> sessionID = rxMetaData.read();
+                sessionID = rxMetaData.read();
                 hashIdx = sessionID & (NUM_WAITING_Q-1);
-                sessionWaiting_write(hashIdx, sessionID);
-                // sessionWaitingQueues[hashIdx].write(sessionID);
-                fsmState = 1;
+                if(sessionWaiting_full(hashIdx)){
+                    fsmState = 1;
+                }
+                else{
+                    sessionWaiting_write(hashIdx, sessionID);
+                    std::cout << "sessionWaiting_write " << sessionID << std::endl;
+                    fsmState = 2;
+                }
             }
             break;
         }
-        case 1:{
+        case 1: {
+            if(!sessionWaiting_full(hashIdx)){
+                sessionWaiting_write(hashIdx, sessionID);
+                std::cout << "sessionWaiting_write " << sessionID << std::endl;
+                fsmState = 2;
+            }
+        }
+        case 2:{
             if(!rxData.empty()){
                 net_axis<DATA_WIDTH> currWord = rxData.read();
                 wordWaitingQueues[hashIdx].write(currWord);
@@ -670,7 +666,7 @@ void admission_control2(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-    #pragma HLS ARRAY_PARTITION variable=buffered_sessionWaiting complete
+    // #pragma HLS ARRAY_PARTITION variable=buffered_sessionWaiting complete
     
     static ap_uint<BITS_WAITING_Q> startPos = 0;
     static ap_uint<4> fsmState = 0;
@@ -683,7 +679,6 @@ void admission_control2(
             ap_uint<NUM_WAITING_Q> vlds = 0;
             for(uint32_t i = 0; i < NUM_WAITING_Q; i++){
                 #pragma HLS UNROLL
-                // vlds[i] = (!sessionWaitingQueues[i].empty() && !wordWaitingQueues[i].empty());
                 vlds[i] = (!sessionWaiting_empty(i) && !wordWaitingQueues[i].empty());
             }
 
@@ -709,6 +704,7 @@ void admission_control2(
         }
         case 1:{
             currSessionID = sessionWaiting_peek(slot);
+            std::cout << "sessionWaiting_peek " << currSessionID << std::endl;
             // lookup the session stash maintained by the state recovery. 
             sessionStashLookupFifo_out.write(currSessionID);
             fsmState = 2;
@@ -1436,8 +1432,9 @@ void mcrouter(
     // read data from network and parse them into msgFifo
     // parser(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, 
     //         s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp);
-    admission_control1(rxMetaData, rxData);
-    admission_control2(sessionStashLookupFifo, sessionStashLookupRspFifo, s_axis_lup_req, rxMetaData_sr, rxData_sr);
+    #pragma HLS ARRAY_PARTITION variable=sessionWaitingQueues complete
+    admission_control1(rxMetaData, rxData, sessionWaitingQueues);
+    admission_control2(sessionStashLookupFifo, sessionStashLookupRspFifo, s_axis_lup_req, rxMetaData_sr, rxData_sr, sessionWaitingQueues);
     state_recovery(rxMetaData_sr, rxData_sr, sessionStashLookupFifo, sessionStashLookupRspFifo, m_axis_lup_rsp, m_axis_upd_rsp, s_axis_upd_req, 
             currWordFiFo_parser, currSessionStateFifo_parser, currMsgBodyFifo_parser, currSessionStateFifo_sr, currMsgBodyFifo_sr);
     parser(currWordFiFo_parser, currSessionStateFifo_parser, currMsgBodyFifo_parser, currSessionStateFifo_sr, currMsgBodyFifo_sr, 
