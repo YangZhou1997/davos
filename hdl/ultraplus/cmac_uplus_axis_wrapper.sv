@@ -52,8 +52,14 @@ module cmac_axis_wrapper
 );
 
 
+logic           gt_txusrclk2_direct;
 logic           gt_txusrclk2;
 //logic[11 :0]    gt_loopback_in = 12'd0;
+
+BUFG bufg_txoutclk (
+    .I(gt_txusrclk2_direct),
+    .O(gt_txusrclk2)
+);
 
 wire         usr_rx_reset_w;
 wire         core_tx_reset_w;
@@ -303,7 +309,7 @@ cmac_usplus_axis cmac_axis_inst (
         .gt3_txn_out                   (gt_txn_out[3]),
         
         // @yang, this close (322Mhz) drives the mcrouter and tcp engine. 
-        .gt_txusrclk2                  (gt_txusrclk2),
+        .gt_txusrclk2                  (gt_txusrclk2_direct),
         .gt_loopback_in                (12'd0),
         .gt_rxrecclkout                (gt_rxrecclkout),
         .gt_powergoodout               (),
