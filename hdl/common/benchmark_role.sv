@@ -391,16 +391,16 @@ always @(posedge user_clk) begin
       runExperiment <= 1'b0;
       axis_iperf_cmd_ready <= 1'b0;
       axis_iperf_addr.ready <= 1'b0;
-      iperfAddresses[0] <= 32'h0B01D40A;
-      iperfAddresses[1] <= 32'h0B01D40A;
-      iperfAddresses[2] <= 32'h0B01D40A;
-      iperfAddresses[3] <= 32'h0B01D40A;
-      iperfAddresses[4] <= 32'h0B01D40A;
-      iperfAddresses[5] <= 32'h0B01D40A;
-      iperfAddresses[6] <= 32'h0B01D40A;
-      iperfAddresses[7] <= 32'h0B01D40A;
-      iperfAddresses[8] <= 32'h0B01D40A;
-      iperfAddresses[9] <= 32'h0B01D40A;
+      iperfAddresses[0] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[1] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[2] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[3] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[4] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[5] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[6] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[7] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[8] <= 32'hC0A80006; // 192.168.0.6
+      iperfAddresses[9] <= 32'hC0A80006; // 192.168.0.6
       running <= 1'b0;
             
       listenCounter <= '0;
@@ -424,7 +424,7 @@ always @(posedge user_clk) begin
       end
       if (runExperimentVio == 1'b1) begin
          runExperiment <= 1'b1;
-         iperfAddresses[0] <= 32'h0B01D40A;
+         iperfAddresses[0] <= 32'hC0A80006; // 192.168.0.6
          dualMode <= 1'b0;//axis_iperf_cmd_data[0];
          noOfConnections <= 16'h01; //{1'b0, axis_iperf_cmd_data[15:1]};
          pkgWordCount <= 8'd175;//axis_iperf_cmd_data[23:16];
@@ -736,6 +736,26 @@ ila_32_mixed benchmark_debug (
 	.probe30(iperf_sts_good_counter[15:0]),
 	.probe31(iperf_sts_good_counter[31:16])
 );
+
+// ila_mixed3 benchmark_debug2 (
+//     .clk(user_clk),
+//     .probe0(iperfAddresses[9]),
+//     .probe1(iperfAddresses[8]),
+//     .probe2(iperfAddresses[7]),
+//     .probe3(iperfAddresses[6]),
+//     .probe4(iperfAddresses[5]),
+//     .probe5(iperfAddresses[4]),
+//     .probe6(iperfAddresses[3]),
+//     .probe7(iperfAddresses[2]),
+//     .probe8(32'h0),
+//     .probe9(32'h0),
+//     .probe10(32'h0),
+//     .probe11(32'h0),
+//     .probe12(32'h0),
+//     .probe13(32'h0),
+//     .probe14(32'h0),
+//     .probe15(32'h0)
+// );
 
 `endif
 

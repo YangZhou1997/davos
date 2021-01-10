@@ -58,7 +58,7 @@ void client(hls::stream<ipTuple>&				openConnection,
 				ap_uint<14>		useConn,
 				ap_uint<8> 		pkgWordCount,
 				ap_uint<8>		packetGap,
-            ap_uint<32>    timeInSeconds,
+                ap_uint<32>     timeInSeconds,
 				ap_uint<32>		regIpAddress0,
 				ap_uint<32>		regIpAddress1,
 				ap_uint<32>		regIpAddress2,
@@ -86,6 +86,14 @@ void client(hls::stream<ipTuple>&				openConnection,
 	static iperfTcpHeader<WIDTH> header;
 	static ap_uint<8> packetGapCounter = 0;
 
+    regIpAddress9 = (uint32_t)numConnections;
+    regIpAddress8 = (uint32_t)currentSessionID;
+    regIpAddress7 = (uint32_t)sessionIt;
+    regIpAddress6 = (uint32_t)closeIt;
+    regIpAddress5 = (uint32_t)wordCount;
+    regIpAddress4 = (uint32_t)ipAddressIdx;
+    regIpAddress3 = (uint32_t)packetGapCounter;
+    regIpAddress2 = (uint32_t)iperfFsmState;
 
 	/*
 	 * CLIENT FSM
