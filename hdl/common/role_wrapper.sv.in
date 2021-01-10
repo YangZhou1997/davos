@@ -182,18 +182,18 @@ axi_stream      axis_dma_read_data();
 axi_stream      axis_dma_write_data();
 
 
-axi_stream      axis_tcp_listen_port();
-axi_stream      axis_tcp_listen_port_status();
-axi_stream      axis_tcp_open_connection();
-axi_stream      axis_tcp_open_status();
-axi_stream      axis_tcp_close_connection();
-axi_stream      axis_tcp_notifications();
-axi_stream      axis_tcp_read_package();
-axi_stream      axis_tcp_rx_metadata();
+axis_meta      axis_tcp_listen_port();
+axis_meta      axis_tcp_listen_port_status();
+axis_meta      axis_tcp_open_connection();
+axis_meta      axis_tcp_open_status();
+axis_meta      axis_tcp_close_connection();
+axis_meta      axis_tcp_notifications();
+axis_meta      axis_tcp_read_package();
+axis_meta      axis_tcp_rx_metadata();
 axi_stream      axis_tcp_rx_data();
-axi_stream      axis_tcp_tx_metadata();
+axis_meta      axis_tcp_tx_metadata();
 axi_stream      axis_tcp_tx_data();
-axi_stream      axis_tcp_tx_status();
+axis_meta      axis_tcp_tx_status();
 
 ${ROLE_NAME} #(
     .NUM_ROLE_DDR_CHANNELS(NUM_DDR_CHANNELS - NUM_TCP_CHANNELS)
