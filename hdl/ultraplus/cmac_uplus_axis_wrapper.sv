@@ -54,75 +54,8 @@ module cmac_axis_wrapper
 
 logic           gt_txusrclk2_direct;
 logic           gt_txusrclk2;
-logic           gt_txusrclk2_mmcm_out;
 
-logic mmcm_rst;
-logic mmcm_locked;
-logic mmcm_clkfb;
-
-// MMCM instance
-// 322.26 MHz in, 161.13 MHz out
-// PFD range: 10 MHz to 500 MHz
-// VCO range: 800 MHz to 1600 MHz
-// M = 3, D = 1 sets Fvco = 966.78 MHz (in range)
-// Divide by 6 to get output frequency of 161.13 MHz
-MMCME4_BASE #(
-    .BANDWIDTH("OPTIMIZED"),
-    .CLKOUT0_DIVIDE_F(6),
-    .CLKOUT0_DUTY_CYCLE(0.5),
-    .CLKOUT0_PHASE(0),
-    .CLKOUT1_DIVIDE(1),
-    .CLKOUT1_DUTY_CYCLE(0.5),
-    .CLKOUT1_PHASE(0),
-    .CLKOUT2_DIVIDE(1),
-    .CLKOUT2_DUTY_CYCLE(0.5),
-    .CLKOUT2_PHASE(0),
-    .CLKOUT3_DIVIDE(1),
-    .CLKOUT3_DUTY_CYCLE(0.5),
-    .CLKOUT3_PHASE(0),
-    .CLKOUT4_DIVIDE(1),
-    .CLKOUT4_DUTY_CYCLE(0.5),
-    .CLKOUT4_PHASE(0),
-    .CLKOUT5_DIVIDE(1),
-    .CLKOUT5_DUTY_CYCLE(0.5),
-    .CLKOUT5_PHASE(0),
-    .CLKOUT6_DIVIDE(1),
-    .CLKOUT6_DUTY_CYCLE(0.5),
-    .CLKOUT6_PHASE(0),
-    .CLKFBOUT_MULT_F(3),
-    .CLKFBOUT_PHASE(0),
-    .DIVCLK_DIVIDE(1),
-    .REF_JITTER1(0.010),
-    .CLKIN1_PERIOD(3.103),
-    .STARTUP_WAIT("FALSE"),
-    .CLKOUT4_CASCADE("FALSE")
-)
-clk_mmcm_inst (
-    .CLKIN1(gt_txusrclk2_direct),
-    .CLKFBIN(mmcm_clkfb),
-    .RST(mmcm_rst),
-    .PWRDWN(1'b0),
-    .CLKOUT0(gt_txusrclk2_mmcm_out),
-    .CLKOUT0B(),
-    .CLKOUT1(),
-    .CLKOUT1B(),
-    .CLKOUT2(),
-    .CLKOUT2B(),
-    .CLKOUT3(),
-    .CLKOUT3B(),
-    .CLKOUT4(),
-    .CLKOUT5(),
-    .CLKOUT6(),
-    .CLKFBOUT(mmcm_clkfb),
-    .CLKFBOUTB(),
-    .LOCKED(mmcm_locked)
-);
-
-BUFG
-clk_125mhz_bufg_inst (
-    .I(gt_txusrclk2_mmcm_out),
-    .O(gt_txusrclk2)
-);
+assign gt_txusrclk2 = gt_txusrclk2_direct;
 
 wire         usr_rx_reset_w;
 wire         core_tx_reset_w;

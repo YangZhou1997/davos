@@ -266,7 +266,7 @@ void bodyMerger(
     hls::stream<msgHeader>& msgHeaderFifo_out,
     hls::stream<msgBody>& msgBodyFifo_out
 ){
-#pragma HLS PIPELINE II=2
+#pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
     // #pragma HLS ARRAY_PARTITION variable=parser_stashTable complete
@@ -276,7 +276,7 @@ void bodyMerger(
     #pragma HLS ARRAY_PARTITION variable=sessionID_stashTable complete
     
     #pragma HLS ARRAY_PARTITION variable=msgbody_stashTable complete
-    #pragma HLS RESOURCE variable=msgbody_stashTable core=RAM_T2P_BRAM
+    #pragma HLS RESOURCE variable=msgbody_stashTable core=RAM_T2P_URAM
     
     // admission control guarantee that there will be two same sessionID in the parser. 
     // #pragma HLS DEPENDENCE variable=fsmState_stashTable inter false

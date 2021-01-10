@@ -33,6 +33,11 @@ set_property -dict [list CONFIG.TDATA_NUM_BYTES {25} CONFIG.Component_Name {axis
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_200/axis_clock_converter_200.xci]
 update_compile_order -fileset sources_1
 
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_512 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {64} CONFIG.HAS_TKEEP {1} CONFIG.HAS_TLAST {1} CONFIG.Component_Name {axis_clock_converter_512}] [get_ips axis_clock_converter_512]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_512/axis_clock_converter_512.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name axi_clock_converter -vendor xilinx.com -library ip -version 2.1 -module_name axil_clock_converter -dir $device_ip_dir
 set_property -dict [list CONFIG.Component_Name {axil_clock_converter} CONFIG.PROTOCOL {AXI4LITE} CONFIG.DATA_WIDTH {32} CONFIG.ID_WIDTH {0} CONFIG.AWUSER_WIDTH {0} CONFIG.ARUSER_WIDTH {0} CONFIG.RUSER_WIDTH {0} CONFIG.WUSER_WIDTH {0} CONFIG.BUSER_WIDTH {0}] [get_ips axil_clock_converter]
 generate_target {instantiation_template} [get_files $device_ip_dir/axil_clock_converter/axil_clock_converter.xci]
