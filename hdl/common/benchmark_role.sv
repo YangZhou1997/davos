@@ -737,25 +737,6 @@ ila_32_mixed benchmark_debug (
 	.probe31(iperf_sts_good_counter[31:16])
 );
 
-// ila_mixed3 benchmark_debug2 (
-//     .clk(user_clk),
-//     .probe0(iperfAddresses[9]),
-//     .probe1(iperfAddresses[8]),
-//     .probe2(iperfAddresses[7]),
-//     .probe3(iperfAddresses[6]),
-//     .probe4(iperfAddresses[5]),
-//     .probe5(iperfAddresses[4]),
-//     .probe6(iperfAddresses[3]),
-//     .probe7(iperfAddresses[2]),
-//     .probe8(32'h0),
-//     .probe9(32'h0),
-//     .probe10(32'h0),
-//     .probe11(32'h0),
-//     .probe12(32'h0),
-//     .probe13(32'h0),
-//     .probe14(32'h0),
-//     .probe15(32'h0)
-// );
 
 `endif
 

@@ -113,6 +113,8 @@ set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_obj
 set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
 set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
 
+set_false_path -from [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]] -to [get_clocks *txoutclk_out*]
+set_false_path -from [get_clocks *txoutclk_out*] -to [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]]
 
 ###
 # DDR 0

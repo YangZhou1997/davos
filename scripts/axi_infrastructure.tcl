@@ -3,14 +3,39 @@
 
 #Clock Converters
 
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_8 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {1} CONFIG.Component_Name {axis_clock_converter_8}] [get_ips axis_clock_converter_8]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_8/axis_clock_converter_8.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_16 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {2} CONFIG.Component_Name {axis_clock_converter_16}] [get_ips axis_clock_converter_16]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_16/axis_clock_converter_16.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_24 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {3} CONFIG.Component_Name {axis_clock_converter_24}] [get_ips axis_clock_converter_24]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_24/axis_clock_converter_24.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_32 -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {4} CONFIG.Component_Name {axis_clock_converter_32}] [get_ips axis_clock_converter_32]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_32/axis_clock_converter_32.xci]
 update_compile_order -fileset sources_1
 
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_48 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {6} CONFIG.Component_Name {axis_clock_converter_48}] [get_ips axis_clock_converter_48]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_48/axis_clock_converter_48.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_64 -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {8} CONFIG.Component_Name {axis_clock_converter_64}] [get_ips axis_clock_converter_64]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_64/axis_clock_converter_64.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_88 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {11} CONFIG.Component_Name {axis_clock_converter_88}] [get_ips axis_clock_converter_88]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_clock_converter_88/axis_clock_converter_88.xci]
 update_compile_order -fileset sources_1
 
 create_ip -name axis_clock_converter -vendor xilinx.com -library ip -version 1.1 -module_name axis_clock_converter_96 -dir $device_ip_dir
@@ -146,6 +171,47 @@ update_compile_order -fileset sources_1
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_512_cc -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {64} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_TKEEP {1} CONFIG.HAS_TLAST {1} CONFIG.Component_Name {axis_data_fifo_512_cc}] [get_ips axis_data_fifo_512_cc]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_512_cc/axis_data_fifo_512_cc.xci]
+update_compile_order -fileset sources_1
+
+# for crossing TCP and applications
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_512_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {64} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_TKEEP {1} CONFIG.HAS_TLAST {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_512_cc_cnt}] [get_ips axis_data_fifo_512_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_512_cc_cnt/axis_data_fifo_512_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_8_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {1} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_8_cc_cnt}] [get_ips axis_data_fifo_8_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_8_cc_cnt/axis_data_fifo_8_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_16_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {2} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_16_cc_cnt}] [get_ips axis_data_fifo_16_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_16_cc_cnt/axis_data_fifo_16_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_24_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {3} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_24_cc_cnt}] [get_ips axis_data_fifo_24_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_24_cc_cnt/axis_data_fifo_24_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_32_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {4} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_32_cc_cnt}] [get_ips axis_data_fifo_32_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_32_cc_cnt/axis_data_fifo_32_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_48_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {6} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_48_cc_cnt}] [get_ips axis_data_fifo_48_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_48_cc_cnt/axis_data_fifo_48_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_64_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {8} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_64_cc_cnt}] [get_ips axis_data_fifo_64_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_64_cc_cnt/axis_data_fifo_64_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_88_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {11} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_88_cc_cnt}] [get_ips axis_data_fifo_88_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_88_cc_cnt/axis_data_fifo_88_cc_cnt.xci]
 update_compile_order -fileset sources_1
 
 
