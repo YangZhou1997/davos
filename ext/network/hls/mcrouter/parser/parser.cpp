@@ -276,7 +276,7 @@ void bodyMerger(
     #pragma HLS ARRAY_PARTITION variable=sessionID_stashTable complete
     
     #pragma HLS ARRAY_PARTITION variable=msgbody_stashTable complete
-    #pragma HLS RESOURCE variable=msgbody_stashTable core=RAM_T2P_URAM
+    // #pragma HLS RESOURCE variable=msgbody_stashTable core=RAM_T2P_URAM
     
     // admission control guarantee that there will be two same sessionID in the parser. 
     // #pragma HLS DEPENDENCE variable=fsmState_stashTable inter false
