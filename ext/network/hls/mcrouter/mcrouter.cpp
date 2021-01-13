@@ -1252,6 +1252,9 @@ void mcrouter(
 	#pragma HLS INTERFACE ap_none register port=regIpPort7
 	#pragma HLS INTERFACE ap_none register port=regIpPort8
 	#pragma HLS INTERFACE ap_none register port=regIpPort9
+	#pragma HLS INTERFACE ap_none register port=ipAddressIdx_debug
+	#pragma HLS INTERFACE ap_none register port=useConn_debug
+	#pragma HLS INTERFACE ap_none register port=sessionCount_debug
 
 
 	static hls::stream<ap_uint<16> >		mc_sessionIdFifo0("mc_sessionIdFifo0");

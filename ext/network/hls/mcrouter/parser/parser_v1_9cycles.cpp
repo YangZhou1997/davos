@@ -29,47 +29,6 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "parser.hpp"
 
 template <int IDX, int W>
-void bodyID(
-    // the initial states before parsing this word
-    hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
-    hls::stream<ap_uint<32> >& currWordValidLenFifo,
-    hls::stream<sessionState>& currSessionStateFifo,
-    hls::stream<msgBody>& currMsgBodyFifo,
-    // the updated states to the next msg_strip after parsing this msg
-    hls::stream<net_axis<DATA_WIDTH> >& currWordOutFifo,
-    hls::stream<ap_uint<32> >& currWordValidLenOutFifo,
-    hls::stream<sessionState>& currSessionStateOutFifo,
-    hls::stream<msgBody>& currMsgBodyOutFifo,
-    // the output of the parser states
-    hls::stream<sessionState>& sessionStateOutFifo,
-    hls::stream<msgBody>& msgBodyStateOutFifo
-){
-
-}
-
-template <int IDX, int W>
-void msgExtracter(
-    // the initial states before parsing this word
-    hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
-    hls::stream<ap_uint<32> >& currWordValidLenFifo,
-    hls::stream<sessionState>& currSessionStateFifo,
-    hls::stream<msgBody>& currMsgBodyFifo,
-    // the updated states to the next msg_strip after parsing this msg
-    hls::stream<net_axis<DATA_WIDTH> >& currWordOutFifo,
-    hls::stream<ap_uint<32> >& currWordValidLenOutFifo,
-    hls::stream<sessionState>& currSessionStateOutFifo,
-    hls::stream<msgBody>& currMsgBodyOutFifo,
-    // the output of the parsed msg
-    hls::stream<msgHeader>& msgHeaderOutFifo,
-    hls::stream<msgBody>& msgBodyOutFifo, 
-    // the output of the parser states
-    hls::stream<sessionState>& sessionStateOutFifo,
-    hls::stream<msgBody>& msgBodyStateOutFifo
-){
-
-}
-
-template <int IDX, int W>
 void msg_strip(
     // the initial states before parsing this word
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
@@ -82,6 +41,7 @@ void msg_strip(
     hls::stream<sessionState>& currSessionStateOutFifo,
     hls::stream<msgBody>& currMsgBodyOutFifo,
     // the output of the parsed msg
+    hls::stream<ap_uint<16> >& sessionIDOutFifo, // output
     hls::stream<msgHeader>& msgHeaderOutFifo,
     hls::stream<msgBody>& msgBodyOutFifo, 
     // the output of the parser states
@@ -219,6 +179,7 @@ void msg_strip(
             std::cout << "writing currMsgBody (path1) for currMsgBody.msgID " << currMsgBody.msgID << std::endl;
 
             // !!! only write out when current msg is parsed
+            sessionIDOutFifo.write(currMsgBody.currSessionID);
             msgHeaderOutFifo.write(currMsgHeader);
             msgBodyOutFifo.write(currMsgBody);
 
@@ -234,8 +195,8 @@ void msg_strip(
             }
             currWordValidLenOutFifo.write(currWordValidLen);
             // write out brand new sessionState and msgBody. 
-            currSessionStateOutFifo.write(sessionState());
-            currMsgBodyOutFifo.write(msgBody());
+            currSessionStateOutFifo.write(sessionState(currSessionState.currSessionID));
+            currMsgBodyOutFifo.write(msgBody(currMsgBody.currSessionID));
         }
         std::cout << "End of msgStrip: currWordValidLen=" << currWordValidLen << std::endl;
         
@@ -254,12 +215,16 @@ void msg_strip(
 }
 
 void msgMux3to1(
+    hls::stream<ap_uint<16> >&              sessionIDFifo1, // input
     hls::stream<msgHeader>&                 msgHeaderFifo1, // input
     hls::stream<msgBody>&                   msgBodyFifo1, // input
+    hls::stream<ap_uint<16> >&              sessionIDFifo2, // input
     hls::stream<msgHeader>&                 msgHeaderFifo2, // input
     hls::stream<msgBody>&                   msgBodyFifo2, // input
+    hls::stream<ap_uint<16> >&              sessionIDFifo3, // input
     hls::stream<msgHeader>&                 msgHeaderFifo3, // input
     hls::stream<msgBody>&                   msgBodyFifo3, // input
+    hls::stream<ap_uint<16> >&              sessionIDFifo_out, // output
     hls::stream<msgHeader>&                 msgHeaderFifo_out, // output
     hls::stream<msgBody>&                   msgBodyFifo_out // output
 ){
@@ -271,22 +236,28 @@ void msgMux3to1(
     ap_uint<1> fifo3_vld = (!msgHeaderFifo3.empty() && !msgBodyFifo3.empty());
 
     if(fifo3_vld){
+        ap_uint<16> sessionID3 = sessionIDFifo3.read();
         msgHeader msghdr3 = msgHeaderFifo3.read();
         msgBody msgbody3 = msgBodyFifo3.read();
+        sessionIDFifo_out.write(sessionID3);
         msgHeaderFifo_out.write(msghdr3);
         msgBodyFifo_out.write(msgbody3);
         std::cout << "msgMux3to1 state3" << std::endl;
     }
     else if(fifo2_vld){
+        ap_uint<16> sessionID2 = sessionIDFifo2.read();
         msgHeader msghdr2 = msgHeaderFifo2.read();
         msgBody msgbody2 = msgBodyFifo2.read();
+        sessionIDFifo_out.write(sessionID2);
         msgHeaderFifo_out.write(msghdr2);
         msgBodyFifo_out.write(msgbody2);
         std::cout << "msgMux3to1 state2" << std::endl;
     }
     else if(fifo1_vld){
+        ap_uint<16> sessionID1 = sessionIDFifo1.read();
         msgHeader msghdr1 = msgHeaderFifo1.read();
         msgBody msgbody1 = msgBodyFifo1.read();
+        sessionIDFifo_out.write(sessionID1);
         msgHeaderFifo_out.write(msghdr1);
         msgBodyFifo_out.write(msgbody1);
         std::cout << "msgMux3to1 state1" << std::endl;
@@ -394,9 +365,6 @@ void statesMux4to1(
 void word1to3(
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo1,
-    // hls::stream<net_axis<DATA_WIDTH> >& currWordFifo2,
-    // hls::stream<net_axis<DATA_WIDTH> >& currWordFifo3,
-    // hls::stream<net_axis<DATA_WIDTH> >& currWordFifo4,
     hls::stream<ap_uint<32> >&          currWordValidLenFifo
 ){
 #pragma HLS PIPELINE II=1
@@ -405,9 +373,6 @@ void word1to3(
     if(!currWordFifo.empty()){
         net_axis<DATA_WIDTH> currWord = currWordFifo.read();
         currWordFifo1.write(currWord);
-        // currWordFifo2.write(currWord);
-        // currWordFifo3.write(currWord);
-        // currWordFifo4.write(currWord);
         currWordValidLenFifo.write(0);
     }
 }
@@ -422,6 +387,7 @@ void parser(
     hls::stream<sessionState>& currSessionStateOutFifo,
     hls::stream<msgBody>& currMsgBodyStateOutFifo,
     // the output of the parsed msg
+    hls::stream<ap_uint<16> >& sessionIDOutFifo,
     hls::stream<msgHeader>& msgHeaderOutFifo,
     hls::stream<msgBody>& msgBodyOutFifo
 ){
@@ -429,7 +395,7 @@ void parser(
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
     static hls::stream<ap_uint<32> >    currWordValidLenFifo("currWordValidLenFifo");
-    #pragma HLS stream variable=currWordValidLenFifo depth=8
+    #pragma HLS stream variable=currWordValidLenFifo depth=2
 
     static hls::stream<ap_uint<32> >    currWordValidLenFifo1("currWordValidLenFifo1");
     static hls::stream<sessionState>    currSessionStateFifo1("currSessionStateFifo1");
@@ -443,18 +409,18 @@ void parser(
     static hls::stream<ap_uint<32> >    currWordValidLenFifo4("currWordValidLenFifo4");
     static hls::stream<sessionState>    currSessionStateFifo4("currSessionStateFifo4");
     static hls::stream<msgBody>         currMsgBodyFifo4("currMsgBodyFifo4");
-    #pragma HLS stream variable=currWordValidLenFifo1 depth=8
-    #pragma HLS stream variable=currSessionStateFifo1 depth=8
-    #pragma HLS stream variable=currMsgBodyFifo1 depth=8
-    #pragma HLS stream variable=currWordValidLenFifo2 depth=8
-    #pragma HLS stream variable=currSessionStateFifo2 depth=8
-    #pragma HLS stream variable=currMsgBodyFifo2 depth=8
-    #pragma HLS stream variable=currWordValidLenFifo3 depth=8
-    #pragma HLS stream variable=currSessionStateFifo3 depth=8
-    #pragma HLS stream variable=currMsgBodyFifo3 depth=8
-    #pragma HLS stream variable=currWordValidLenFifo4 depth=8
-    #pragma HLS stream variable=currSessionStateFifo4 depth=8
-    #pragma HLS stream variable=currMsgBodyFifo4 depth=8
+    #pragma HLS stream variable=currWordValidLenFifo1 depth=2
+    #pragma HLS stream variable=currSessionStateFifo1 depth=2
+    #pragma HLS stream variable=currMsgBodyFifo1 depth=2
+    #pragma HLS stream variable=currWordValidLenFifo2 depth=2
+    #pragma HLS stream variable=currSessionStateFifo2 depth=2
+    #pragma HLS stream variable=currMsgBodyFifo2 depth=2
+    #pragma HLS stream variable=currWordValidLenFifo3 depth=2
+    #pragma HLS stream variable=currSessionStateFifo3 depth=2
+    #pragma HLS stream variable=currMsgBodyFifo3 depth=2
+    #pragma HLS stream variable=currWordValidLenFifo4 depth=2
+    #pragma HLS stream variable=currSessionStateFifo4 depth=2
+    #pragma HLS stream variable=currMsgBodyFifo4 depth=2
     #pragma HLS DATA_PACK variable=currSessionStateFifo1
     #pragma HLS DATA_PACK variable=currMsgBodyFifo1
     #pragma HLS DATA_PACK variable=currSessionStateFifo2
@@ -464,7 +430,6 @@ void parser(
     #pragma HLS DATA_PACK variable=currSessionStateFifo4
     #pragma HLS DATA_PACK variable=currMsgBodyFifo4
 
-
     static hls::stream<sessionState>        sessionStateFifo1("sessionStateFifo1");
     static hls::stream<sessionState>        sessionStateFifo2("sessionStateFifo2");
     static hls::stream<sessionState>        sessionStateFifo3("sessionStateFifo3");
@@ -473,14 +438,14 @@ void parser(
     static hls::stream<msgBody>             msgBodyStateFifo2("msgBodyStateFifo2");
     static hls::stream<msgBody>             msgBodyStateFifo3("msgBodyStateFifo3");
     static hls::stream<msgBody>             msgBodyStateFifo4("msgBodyStateFifo4");
-    #pragma HLS stream variable=sessionStateFifo1 depth=8
-    #pragma HLS stream variable=sessionStateFifo2 depth=8
-    #pragma HLS stream variable=sessionStateFifo3 depth=8
-    #pragma HLS stream variable=sessionStateFifo4 depth=8
-    #pragma HLS stream variable=msgBodyStateFifo1 depth=8
-    #pragma HLS stream variable=msgBodyStateFifo2 depth=8
-    #pragma HLS stream variable=msgBodyStateFifo3 depth=8
-    #pragma HLS stream variable=msgBodyStateFifo4 depth=8
+    #pragma HLS stream variable=sessionStateFifo1 depth=2
+    #pragma HLS stream variable=sessionStateFifo2 depth=2
+    #pragma HLS stream variable=sessionStateFifo3 depth=2
+    #pragma HLS stream variable=sessionStateFifo4 depth=2
+    #pragma HLS stream variable=msgBodyStateFifo1 depth=2
+    #pragma HLS stream variable=msgBodyStateFifo2 depth=2
+    #pragma HLS stream variable=msgBodyStateFifo3 depth=2
+    #pragma HLS stream variable=msgBodyStateFifo4 depth=2
     #pragma HLS DATA_PACK variable=sessionStateFifo1
     #pragma HLS DATA_PACK variable=sessionStateFifo2
     #pragma HLS DATA_PACK variable=sessionStateFifo3
@@ -498,14 +463,14 @@ void parser(
 	static hls::stream<msgBody>		        msgBodyFifo2("msgBodyFifo2");
     static hls::stream<msgBody>		        msgBodyFifo3("msgBodyFifo3");
 	static hls::stream<msgBody>		        msgBodyFifo4("msgBodyFifo4");
-    #pragma HLS stream variable=msgHeaderFifo1 depth=8
-    #pragma HLS stream variable=msgHeaderFifo2 depth=8
-    #pragma HLS stream variable=msgHeaderFifo3 depth=8
-    #pragma HLS stream variable=msgHeaderFifo4 depth=8
-    #pragma HLS stream variable=msgBodyFifo1 depth=8
-    #pragma HLS stream variable=msgBodyFifo2 depth=8
-    #pragma HLS stream variable=msgBodyFifo3 depth=8
-    #pragma HLS stream variable=msgBodyFifo4 depth=8
+    #pragma HLS stream variable=msgHeaderFifo1 depth=2
+    #pragma HLS stream variable=msgHeaderFifo2 depth=2
+    #pragma HLS stream variable=msgHeaderFifo3 depth=2
+    #pragma HLS stream variable=msgHeaderFifo4 depth=2
+    #pragma HLS stream variable=msgBodyFifo1 depth=2
+    #pragma HLS stream variable=msgBodyFifo2 depth=2
+    #pragma HLS stream variable=msgBodyFifo3 depth=2
+    #pragma HLS stream variable=msgBodyFifo4 depth=2
     #pragma HLS DATA_PACK variable=msgHeaderFifo1
     #pragma HLS DATA_PACK variable=msgHeaderFifo2
     #pragma HLS DATA_PACK variable=msgHeaderFifo3
@@ -520,34 +485,47 @@ void parser(
     static hls::stream<net_axis<DATA_WIDTH> >   currWordFifo3;
     static hls::stream<net_axis<DATA_WIDTH> >   currWordFifo4;
     static hls::stream<net_axis<DATA_WIDTH> >   currWordFifo5;
-    #pragma HLS stream variable=currWordFifo1 depth=8
-    #pragma HLS stream variable=currWordFifo2 depth=8
-    #pragma HLS stream variable=currWordFifo3 depth=8
-    #pragma HLS stream variable=currWordFifo4 depth=8
-    #pragma HLS stream variable=currWordFifo5 depth=8
+    #pragma HLS stream variable=currWordFifo1 depth=2
+    #pragma HLS stream variable=currWordFifo2 depth=2
+    #pragma HLS stream variable=currWordFifo3 depth=2
+    #pragma HLS stream variable=currWordFifo4 depth=2
+    #pragma HLS stream variable=currWordFifo5 depth=2
     #pragma HLS DATA_PACK variable=currWordFifo1
     #pragma HLS DATA_PACK variable=currWordFifo2
     #pragma HLS DATA_PACK variable=currWordFifo3
     #pragma HLS DATA_PACK variable=currWordFifo4
     #pragma HLS DATA_PACK variable=currWordFifo5
 
+    static hls::stream<ap_uint<16> >   sessionIDFifo1;
+    static hls::stream<ap_uint<16> >   sessionIDFifo2;
+    static hls::stream<ap_uint<16> >   sessionIDFifo3;
+    static hls::stream<ap_uint<16> >   sessionIDFifo4;
+    #pragma HLS stream variable=sessionIDFifo1 depth=2
+    #pragma HLS stream variable=sessionIDFifo2 depth=2
+    #pragma HLS stream variable=sessionIDFifo3 depth=2
+    #pragma HLS stream variable=sessionIDFifo4 depth=2
+
     word1to3(currWordFifo, currWordFifo1, currWordValidLenFifo);
 
     msg_strip<1, 0xa>(currWordFifo1, currWordValidLenFifo, currSessionStateFifo, currMsgBodyFifo, 
                       currWordFifo2, currWordValidLenFifo1, currSessionStateFifo1, currMsgBodyFifo1, 
-                      msgHeaderFifo1, msgBodyFifo1, sessionStateFifo1, msgBodyStateFifo1);
+                      sessionIDFifo1, msgHeaderFifo1, msgBodyFifo1, sessionStateFifo1, msgBodyStateFifo1);
     msg_strip<2, 0xb>(currWordFifo2, currWordValidLenFifo1, currSessionStateFifo1, currMsgBodyFifo1, 
                       currWordFifo3, currWordValidLenFifo2, currSessionStateFifo2, currMsgBodyFifo2, 
-                      msgHeaderFifo2, msgBodyFifo2, sessionStateFifo2, msgBodyStateFifo2);
+                      sessionIDFifo2, msgHeaderFifo2, msgBodyFifo2, sessionStateFifo2, msgBodyStateFifo2);
     msg_strip<3, 0xc>(currWordFifo3, currWordValidLenFifo2, currSessionStateFifo2, currMsgBodyFifo2, 
                       currWordFifo4, currWordValidLenFifo3, currSessionStateFifo3, currMsgBodyFifo3, 
-                      msgHeaderFifo3, msgBodyFifo3, sessionStateFifo3, msgBodyStateFifo3);
+                      sessionIDFifo3, msgHeaderFifo3, msgBodyFifo3, sessionStateFifo3, msgBodyStateFifo3);
     msg_strip<4, 0xd>(currWordFifo4, currWordValidLenFifo3, currSessionStateFifo3, currMsgBodyFifo3, 
                       currWordFifo5, currWordValidLenFifo4, currSessionStateFifo4, currMsgBodyFifo4, 
-                      msgHeaderFifo4, msgBodyFifo4, sessionStateFifo4, msgBodyStateFifo4);
+                      sessionIDFifo4, msgHeaderFifo4, msgBodyFifo4, sessionStateFifo4, msgBodyStateFifo4);
 
-    msgMux3to1(msgHeaderFifo1, msgBodyFifo1, msgHeaderFifo2, msgBodyFifo2, msgHeaderFifo3, msgBodyFifo3, msgHeaderOutFifo, msgBodyOutFifo);
+    msgMux3to1(sessionIDFifo1, msgHeaderFifo1, msgBodyFifo1, 
+                sessionIDFifo2, msgHeaderFifo2, msgBodyFifo2, 
+                sessionIDFifo3, msgHeaderFifo3, msgBodyFifo3, 
+                sessionIDOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
     
     statesMux4to1(sessionStateFifo1, msgBodyStateFifo1, sessionStateFifo2, msgBodyStateFifo2, 
-                sessionStateFifo3, msgBodyStateFifo3, sessionStateFifo4, msgBodyStateFifo4, currSessionStateOutFifo, currMsgBodyStateOutFifo);
+                sessionStateFifo3, msgBodyStateFifo3, sessionStateFifo4, msgBodyStateFifo4, 
+                currSessionStateOutFifo, currMsgBodyStateOutFifo);
 }
