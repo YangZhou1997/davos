@@ -47,6 +47,8 @@ module davos_top
     input wire             resetn_0_nb,
     input wire             gt_refclk_p,
     input wire             gt_refclk_n,
+    // input wire             user_clk_p,
+    // input wire             user_clk_n,
 
     //156.25MHz user clock
     //input wire             uclk_p,
@@ -122,8 +124,24 @@ module davos_top
  */
 wire sys_reset_n;
 // User logic clock & reset
+// wire user_clk_ibufds;
 wire user_clk;
 wire user_aresetn;
+
+// IBUFDS #(
+//    .DQS_BIAS("FALSE")  // (FALSE, TRUE)
+// )
+// uclk_BUFG_inst (
+//    .O(user_clk_ibufds),   // 1-bit output: Buffer output
+//    .I(user_clk_p),   // 1-bit input: Diff_p buffer input (connect directly to top-level port)
+//    .IB(user_clk_n)  // 1-bit input: Diff_n buffer input (connect directly to top-level port)
+// );
+
+// BUFG
+// clk_161mhz_bufg_inst (
+//     .I(user_clk_ibufds),
+//     .O(user_clk)
+// );
 
 /*
  * PCIe Signals
@@ -279,6 +297,14 @@ clk_125mhz_bufg_inst (
 
 wire dclk;
 assign dclk = clk_125mhz_int;
+
+BUFG
+clk_161mhz_bufg_inst (
+    .I(clk_161mhz_ref_int),
+    .O(user_clk)
+);
+
+assign user_aresetn = net_aresetn;
 
 //Network reset
 BUFG bufg_aresetn(
@@ -903,7 +929,7 @@ os #(
     .mem_aresetn(mem_aresetn),
     .net_clk(net_clk),
     .net_aresetn(net_aresetn),
-
+    
     .user_clk(user_clk),
     .user_aresetn(user_aresetn),
 

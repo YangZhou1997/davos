@@ -32,6 +32,13 @@ set_property BITSTREAM.CONFIG.UNUSEDPIN PULLUP         [current_design]
 set_property PACKAGE_PIN K10 [get_ports gt_refclk_n]
 set_property PACKAGE_PIN K11 [get_ports gt_refclk_p]
 
+# 161MHz
+# set_property -dict {LOC P10 IOSTANDARD LVDS} [get_ports user_clk_n] 
+# set_property -dict {LOC P11 IOSTANDARD LVDS} [get_ports user_clk_p] 
+# create_clock -period 6.206 -name user_clk [get_pins uclk_BUFG_inst/O]
+create_clock -period 6.206 -name user_clk [get_pins clk_161mhz_bufg_inst/O]
+
+
 #QSPF28 Connector1
 # set_property	PACKAGE_PIN	N3		[get_ports 	{gt_rxn_in[0]}	] ; 
 # set_property	PACKAGE_PIN	M1		[get_ports 	{gt_rxn_in[1]}	] ; 
@@ -113,8 +120,11 @@ set_max_delay -datapath_only -from [get_clocks dclk_clk] -to [get_clocks -of_obj
 set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/RXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
 set_max_delay -datapath_only -from [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ */channel_inst/*_CHANNEL_PRIM_INST/TXOUTCLK}]] -to [get_clocks dclk_clk] 6.206
 
-set_false_path -from [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]] -to [get_clocks *txoutclk_out*]
-set_false_path -from [get_clocks *txoutclk_out*] -to [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]]
+# set_false_path -from [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]] -to [get_clocks *txoutclk_out*]
+# set_false_path -from [get_clocks *txoutclk_out*] -to [get_clocks -of_objects [get_pins os_inst/user_role_wrapper/clk_mmcm_inst/CLKOUT0]]
+
+set_false_path -from [get_clocks *user_clk*] -to [get_clocks *txoutclk_out*]
+set_false_path -from [get_clocks *txoutclk_out*] -to [get_clocks *user_clk*]
 
 ###
 # DDR 0
@@ -444,6 +454,7 @@ set_property	IOSTANDARD		LVCMOS12	[get_ports 	perst_n	] ;
 # Set false path
 set_false_path -from [get_ports perst_n]
 
+# 250Mhz
 set_property	PACKAGE_PIN	AM10	        [get_ports 	{pcie_clk_n}] ; 
 set_property	PACKAGE_PIN	AM11            [get_ports 	{pcie_clk_p}] ; 
 
