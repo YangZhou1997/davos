@@ -51,7 +51,7 @@ module network_module_100g
 	
 	//Axi Stream Interface
 	axi_stream.master      m_axis_net_rx,
-	axi_stream.slave       s_axis_net_tx
+	axi_stream.slave       s_axis_net_tx //input from user
 );
 
 reg core_reset_tmp;
@@ -100,7 +100,7 @@ cmac_axis_wrapper cmac_wrapper_inst
     .sys_reset(sys_reset),
 
     .m_rx_axis(rx_axis),
-    .s_tx_axis(tx_axis),
+    .s_tx_axis(tx_axis), // input
 
     .rx_aligned(rx_aligned), //Todo REmove/rename
     .usr_tx_clk(net_clk),
@@ -135,13 +135,13 @@ axis_data_fifo_512_cc tx_crossing (
   .s_axis_aclk(net_clk),
   .s_axis_tvalid(axis_tx_pkg_to_fifo.valid),
   .s_axis_tready(axis_tx_pkg_to_fifo.ready),
-  .s_axis_tdata(axis_tx_pkg_to_fifo.data),
+  .s_axis_tdata(axis_tx_pkg_to_fifo.data), // input
   .s_axis_tkeep(axis_tx_pkg_to_fifo.keep),
   .s_axis_tlast(axis_tx_pkg_to_fifo.last),
   .m_axis_aclk(net_clk),
   .m_axis_tvalid(tx_axis.valid),
   .m_axis_tready(tx_axis.ready),
-  .m_axis_tdata(tx_axis.data),
+  .m_axis_tdata(tx_axis.data), // output
   .m_axis_tkeep(tx_axis.keep),
   .m_axis_tlast(tx_axis.last)
 );
@@ -151,12 +151,12 @@ axis_pkg_fifo_512 axis_pkg_fifo_512 (
   .s_axis_aclk(net_clk),
   .s_axis_tvalid(axis_tx_padding_to_fifo.valid),
   .s_axis_tready(axis_tx_padding_to_fifo.ready),
-  .s_axis_tdata(axis_tx_padding_to_fifo.data),
+  .s_axis_tdata(axis_tx_padding_to_fifo.data), //input
   .s_axis_tkeep(axis_tx_padding_to_fifo.keep),
   .s_axis_tlast(axis_tx_padding_to_fifo.last),
   .m_axis_tvalid(axis_tx_pkg_to_fifo.valid),
   .m_axis_tready(axis_tx_pkg_to_fifo.ready),
-  .m_axis_tdata(axis_tx_pkg_to_fifo.data),
+  .m_axis_tdata(axis_tx_pkg_to_fifo.data), //output
   .m_axis_tkeep(axis_tx_pkg_to_fifo.keep),
   .m_axis_tlast(axis_tx_pkg_to_fifo.last)
 );
@@ -164,12 +164,12 @@ axis_pkg_fifo_512 axis_pkg_fifo_512 (
 ethernet_frame_padding_512_ip ethernet_frame_padding_inst (
   .m_axis_TVALID(axis_tx_padding_to_fifo.valid),
   .m_axis_TREADY(axis_tx_padding_to_fifo.ready),
-  .m_axis_TDATA(axis_tx_padding_to_fifo.data),
+  .m_axis_TDATA(axis_tx_padding_to_fifo.data), //output
   .m_axis_TKEEP(axis_tx_padding_to_fifo.keep),
   .m_axis_TLAST(axis_tx_padding_to_fifo.last),
   .s_axis_TVALID(s_axis_net_tx.valid),
   .s_axis_TREADY(s_axis_net_tx.ready),
-  .s_axis_TDATA(s_axis_net_tx.data),
+  .s_axis_TDATA(s_axis_net_tx.data), //input
   .s_axis_TKEEP(s_axis_net_tx.keep),
   .s_axis_TLAST(s_axis_net_tx.last),
   .ap_clk(net_clk),

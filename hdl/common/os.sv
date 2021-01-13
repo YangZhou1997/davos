@@ -43,8 +43,8 @@ module os #(
     input wire[NUM_DDR_CHANNELS-1:0]    mem_aresetn,
     input wire      net_clk,
     input wire      net_aresetn,
-    output logic    user_clk,
-    output logic    user_aresetn,
+    input wire      user_clk,
+    input wire      user_aresetn,
 
     // Axi Lite Control Interface
     axi_lite.slave      s_axil_control,  
@@ -291,7 +291,9 @@ mem_single_inf #(
     .ENABLE(ENABLE_DDR),
     .UNALIGNED(0 < NUM_TCP_CHANNELS)
 ) mem_inf_inst0 (
-.user_clk(user_clk),
+// @yang, change it to net_clk, as TCP uses the DDR
+// .user_clk(user_clk),
+.user_clk(net_clk),
 .user_aresetn(ddr_calib_complete),
 .pcie_clk(pcie_clk), //TODO remove
 .pcie_aresetn(pcie_aresetn),
@@ -363,7 +365,9 @@ mem_single_inf #(
     .ENABLE(ENABLE_DDR),
     .UNALIGNED(1 < NUM_TCP_CHANNELS)
 ) mem_inf_inst1 (
-.user_clk(user_clk),
+// @yang, change it to net_clk, as TCP uses the DDR
+// .user_clk(user_clk),
+.user_clk(net_clk),
 .user_aresetn(ddr_calib_complete),
 .pcie_clk(pcie_clk),
 .pcie_aresetn(pcie_aresetn), //TODO remove

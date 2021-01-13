@@ -720,7 +720,9 @@ ila_32_mixed benchmark_debug (
 	.probe14(s_axis_notifications.valid),
 	.probe15(s_axis_notifications.ready),
 	.probe16(s_axis_notifications.data[31:16]), // input wire [15:0]  probe8 
-	.probe17(m_axis_tx_data.keep), // input wire [15:0]  probe9 
+	.probe17(16'h0), // input wire [15:0]  probe9 
+    // @yang, comments this, as this will cause net partial conflict error
+	// .probe17(m_axis_tx_data.keep), // input wire [15:0]  probe9 
 	.probe18(s_axis_tx_status.data[15:0]), // input wire [15:0]  probe10 
 	.probe19(s_axis_tx_status.data[31:16]),// input wire [15:0]  probe11 
 	.probe20(s_axis_tx_status.data[47:32]), // input wire [15:0]  probe12 
