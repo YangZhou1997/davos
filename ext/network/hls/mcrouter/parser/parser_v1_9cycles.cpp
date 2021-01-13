@@ -201,7 +201,7 @@ void msg_strip(
         std::cout << "End of msgStrip: currWordValidLen=" << currWordValidLen << std::endl;
         
         if(parsingMsgState && currWordValidLen == 0){
-            currSessionState.reset();
+            currSessionState.reset2();
             currMsgBody.reset();
         }
         
@@ -231,9 +231,9 @@ void msgMux3to1(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
 
-    ap_uint<1> fifo1_vld = (!msgHeaderFifo1.empty() && !msgBodyFifo1.empty());
-    ap_uint<1> fifo2_vld = (!msgHeaderFifo2.empty() && !msgBodyFifo2.empty());
-    ap_uint<1> fifo3_vld = (!msgHeaderFifo3.empty() && !msgBodyFifo3.empty());
+    ap_uint<1> fifo1_vld = (!sessionIDFifo1.empty() && !msgHeaderFifo1.empty() && !msgBodyFifo1.empty());
+    ap_uint<1> fifo2_vld = (!sessionIDFifo2.empty() && !msgHeaderFifo2.empty() && !msgBodyFifo2.empty());
+    ap_uint<1> fifo3_vld = (!sessionIDFifo3.empty() && !msgHeaderFifo3.empty() && !msgBodyFifo3.empty());
 
     if(fifo3_vld){
         ap_uint<16> sessionID3 = sessionIDFifo3.read();

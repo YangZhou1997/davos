@@ -205,6 +205,18 @@ struct sessionState {
         currSessionID = 0;
     }
 
+    void reset2() {
+        // msgHeaderBuff = 0;
+        
+        parsingHeaderState = 0;
+        parsingBodyState = 0;
+
+        requiredLen = 0;
+        currHdrLen = 0;
+        currBodyLen = 0;
+        // currSessionID = 0;
+    }
+
     void display(){
         std::cout << "parsingHeaderState " << std::dec << parsingHeaderState << std::endl;
         std::cout << "parsingBodyState " << std::dec << parsingBodyState << std::endl;

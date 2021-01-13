@@ -48,9 +48,13 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/make.tcl.in make.tcl)
 
 
+# set(EXAMPLE_HLS_DEPENDS
+#     ${CMAKE_CURRENT_SOURCE_DIR}/parser.cpp 
+#     ${CMAKE_CURRENT_SOURCE_DIR}/parser.hpp)
+
 set(EXAMPLE_HLS_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/parser.cpp 
-    ${CMAKE_CURRENT_SOURCE_DIR}/parser.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/parser_v1_9cycles.cpp 
+    ${CMAKE_CURRENT_SOURCE_DIR}/parser_v1_9cycles.hpp)
 
 
 #Setup HLS custom targets
