@@ -28,7 +28,6 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************/
 #pragma once
 
-#include "iperf_client_config.hpp"
 #include "../axi_utils.hpp"
 #include "../packet.hpp"
 #include "../toe/toe.hpp"

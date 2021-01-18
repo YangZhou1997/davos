@@ -25,6 +25,14 @@ set(FPGA_PART xc7vx690tffg1761-2 CACHE STRING "FPGA part")
 set(DATA_WIDTH 8 CACHE STRING "Width of data path in bytes")
 set(CLOCK_PERIOD 6.4 CACHE STRING "Target clock period in nanoseconds")
 
+# TCP parameters
+set(TCP_STACK_MAX_SESSIONS 1000 CACHE STRING "Maximum number of sessions the TCP/IP stack can support")
+set(TCP_STACK_MSS 1460 CACHE STRING "Maximum Segment Size (MSS)")
+set(TCP_STACK_NODELAY_EN 1 CACHE BOOL "Enabling TCP_NODELAY option")
+# set(TCP_STACK_RX_DDR_BYPASS_EN 1 CACHE BOOL "Enabling DDR bypass on the RX path")
+set(TCP_STACK_RX_DDR_BYPASS_EN 0 CACHE BOOL "Enabling DDR bypass on the RX path")
+set(TCP_STACK_FAST_RETRANSMIT_EN 1 CACHE BOOL "Enabling TCP fast retransmit")
+set(TCP_STACK_WINDOW_SCALING_EN 1 CACHE BOOL "Enabling TCP window scaling option")
 
 # Find Xilinx Vivado HLS
 find_package(VivadoHLS REQUIRED)
@@ -35,14 +43,14 @@ endif()
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/iperf_client_config.hpp.in iperf_client_config.hpp)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../toe/toe_config.hpp.in toe_config.hpp)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/make.tcl.in make.tcl)
 
 
 set(EXAMPLE_HLS_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/iperf_client.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/iperf_client.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/iperf_client_config.hpp.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/../toe/toe_config.hpp.in
     ${CMAKE_CURRENT_SOURCE_DIR}/test_iperf_client.cpp)
 
 

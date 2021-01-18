@@ -26,7 +26,6 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABI
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************/
-#include "iperf_client_config.hpp"
 #include "iperf_client.hpp"
 #include <iostream>
 
@@ -351,7 +350,10 @@ void server(	hls::stream<ap_uint<16> >&		listenPort,
 				hls::stream<appNotification>&	notifications,
 				hls::stream<appReadRequest>&	readRequest,
 				hls::stream<ap_uint<16> >&		rxMetaData,
-				hls::stream<net_axis<WIDTH> >&	rxData)
+				hls::stream<net_axis<WIDTH> >&	rxData, 
+                hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+                hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+                hls::stream<mmCmd>&			    rxAppStreamIf2memAccessBreakdown)
 {
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
@@ -417,6 +419,52 @@ void server(	hls::stream<ap_uint<16> >&		listenPort,
 	}
 }
 
+void rx_app_stream_if(hls::stream<appReadRequest>&		appRxDataReq,
+					  hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+					  hls::stream<ap_uint<16> >&		appRxDataRspMetadata,
+					  hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+					  hls::stream<mmCmd>&				rxBufferReadCmd)
+{
+	#pragma HLS PIPELINE II=1
+	#pragma HLS INLINE off
+
+
+	static ap_uint<16>				rasi_readLength;
+	static ap_uint<1>				rasi_fsmState 	= 0;
+
+	switch (rasi_fsmState)
+	{
+		case 0:
+			if (!appRxDataReq.empty())
+			{
+				appReadRequest	app_read_request = appRxDataReq.read();
+ 				// Make sure length is not 0, otherwise Data Mover will hang up
+				if (app_read_request.length != 0)
+				{
+					// Get app pointer
+					rxApp2rxSar_upd_req.write(rxSarAppd(app_read_request.sessionID));
+					rasi_readLength = app_read_request.length;
+					rasi_fsmState = 1;
+				}
+			}
+			break;
+		case 1:
+			if (!rxSar2rxApp_upd_rsp.empty())
+			{
+				rxSarAppd	rxSar = rxSar2rxApp_upd_rsp.read();
+				appRxDataRspMetadata.write(rxSar.sessionID);
+				ap_uint<32> pkgAddr = 0;
+				pkgAddr(29, WINDOW_BITS) = rxSar.sessionID(13, 0);
+				pkgAddr(WINDOW_BITS-1, 0) = rxSar.appd;
+				rxBufferReadCmd.write(mmCmd(pkgAddr, rasi_readLength));
+				// Update app read pointer
+				rxApp2rxSar_upd_req.write(rxSarAppd(rxSar.sessionID, rxSar.appd+rasi_readLength)); // Update me
+				rasi_fsmState = 0;
+			}
+			break;
+	}
+}
+
 void clock( hls::stream<bool>&	startSignal,
             hls::stream<bool>&	stopSignal,
             ap_uint<64>          timeInCycles)
@@ -453,8 +501,6 @@ void clock( hls::stream<bool>&	startSignal,
 void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 					hls::stream<bool>& listenPortStatus,
 					hls::stream<appNotification>& notifications,
-					hls::stream<appReadRequest>& readRequest,
-					hls::stream<ap_uint<16> >& rxMetaData,
 					hls::stream<net_axis<DATA_WIDTH> >& rxData,
 					hls::stream<ipTuple>& openConnection,
 					hls::stream<openStatus>& openConStatus,
@@ -478,7 +524,10 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 					ap_uint<32>		regIpAddress6,
 					ap_uint<32>		regIpAddress7,
 					ap_uint<32>		regIpAddress8,
-					ap_uint<32>		regIpAddress9)
+					ap_uint<32>		regIpAddress9, 
+                    hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+                    hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+                    hls::stream<mmCmd>&			rxAppStreamIf2memAccessBreakdown)
 
 {
 	#pragma HLS DATAFLOW disable_start_propagation
@@ -488,11 +537,11 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 	#pragma HLS INTERFACE axis register port=listenPortStatus name=s_axis_listen_port_status
 
 	#pragma HLS INTERFACE axis register port=notifications name=s_axis_notifications
-	#pragma HLS INTERFACE axis register port=readRequest name=m_axis_read_package
+	// #pragma HLS INTERFACE axis register port=readRequest name=m_axis_read_package
 	#pragma HLS DATA_PACK variable=notifications
-	#pragma HLS DATA_PACK variable=readRequest
+	// #pragma HLS DATA_PACK variable=readRequest
 
-	#pragma HLS INTERFACE axis register port=rxMetaData name=s_axis_rx_metadata
+	// #pragma HLS INTERFACE axis register port=rxMetaData name=s_axis_rx_metadata
 	#pragma HLS INTERFACE axis register port=rxData name=s_axis_rx_data
 
 	#pragma HLS INTERFACE axis register port=openConnection name=m_axis_open_connection
@@ -525,7 +574,13 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 	#pragma HLS INTERFACE ap_none register port=regIpAddress7
 	#pragma HLS INTERFACE ap_none register port=regIpAddress8
 	#pragma HLS INTERFACE ap_none register port=regIpAddress9
-
+    
+    #pragma HLS INTERFACE axis register port=rxSar2rxApp_upd_rsp name=m_rxsar_rxapp_upd_rsp
+	#pragma HLS INTERFACE axis register port=rxApp2rxSar_upd_req name=s_rxapp_rxsar_upd_req
+	#pragma HLS INTERFACE axis register port=rxAppStreamIf2memAccessBreakdown name=s_rxappstreamif_memaccessbreakdown
+	#pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
+    #pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
+	
 	static hls::stream<bool>		startSignalFifo("startSignalFifo");
 	static hls::stream<bool>		stopSignalFifo("stopSignalFifo");
 	#pragma HLS STREAM variable=startSignalFifo depth=2
@@ -534,6 +589,12 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 	//This is required to buffer up to 1024 reponses => supporting up to 1024 connections
 	static hls::stream<internalAppTxRsp>	txStatusBuffer("txStatusBuffer");
 	#pragma HLS STREAM variable=txStatusBuffer depth=1024
+
+	static hls::stream<ap_uint<16> > rxMetaDataFifo("rxMetaDataFifo");
+	#pragma HLS STREAM variable=rxMetaDataFifo depth=16
+	static hls::stream<appReadRequest> readRequestFifo("readRequestFifo");
+	#pragma HLS STREAM variable=readRequestFifo depth=16
+
 
 	/*
 	 * Client
@@ -571,9 +632,18 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 	server<DATA_WIDTH>(	listenPort,
 			listenPortStatus,
 			notifications,
-			readRequest,
-			rxMetaData,
-			rxData);
+			readRequestFifo,
+			rxMetaDataFifo,
+			rxData,
+            rxSar2rxApp_upd_rsp,
+            rxApp2rxSar_upd_req,
+            rxAppStreamIf2memAccessBreakdown);
+
+    rx_app_stream_if( readRequestFifo, 
+            rxSar2rxApp_upd_rsp, 
+            rxMetaDataFifo, 
+            rxApp2rxSar_upd_req, 
+            rxAppStreamIf2memAccessBreakdown);
 
 	/*
 	 * Clock

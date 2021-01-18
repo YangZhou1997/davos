@@ -7,7 +7,7 @@ create_clock -period ${CLOCK_PERIOD} -name default
 
 set_top ${PROJECT_NAME}
 
-add_files ${CMAKE_CURRENT_SOURCE_DIR}/iperf_client.cpp -cflags "-I${CMAKE_CURRENT_BINARY_DIR}"
+add_files ${CMAKE_CURRENT_SOURCE_DIR}/iperf_client.cpp -cflags "-std=c++11 -I${CMAKE_CURRENT_BINARY_DIR}"
 
 
 add_files -tb ${CMAKE_CURRENT_SOURCE_DIR}/test_iperf_client.cpp

@@ -29,6 +29,7 @@
 #define TOE_HPP_INCLUDED
 
 #include "../axi_utils.hpp"
+#include "toe_internals.hpp"
 
 const uint16_t TCP_PROTOCOL = 0x06;
 
@@ -170,7 +171,6 @@ void toe(	// Data & Memory Interface
 			hls::stream<ap_uint<16> >&					listenPortReq,
 			// This is disabled for the time being, due to complexity concerns
 			//hls::stream<ap_uint<16> >&					appClosePortIn,
-			hls::stream<appReadRequest>&					rxDataReq,
 			hls::stream<ipTuple>&						openConnReq,
 			hls::stream<ap_uint<16> >&					closeConnReq,
 			hls::stream<appTxMeta>&						txDataReqMeta,
@@ -178,14 +178,16 @@ void toe(	// Data & Memory Interface
 
 			hls::stream<bool>&							listenPortRsp,
 			hls::stream<appNotification>&				notification,
-			hls::stream<ap_uint<16> >&					rxDataRspMeta,
 			hls::stream<net_axis<WIDTH> >&						rxDataRsp,
 			hls::stream<openStatus>&						openConnRsp,
 			hls::stream<appTxRsp>&						txDataRsp,
 			//IP Address Input
 			ap_uint<32>								myIpAddress,
 			//statistic
-			ap_uint<16>&							regSessionCount);
+			ap_uint<16>&							regSessionCount, 
+            hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+            hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+            hls::stream<mmCmd>&			rxAppStreamIf2memAccessBreakdown);
 
 
 #endif
