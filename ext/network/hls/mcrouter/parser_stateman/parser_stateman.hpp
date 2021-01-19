@@ -64,7 +64,7 @@ struct parser_htLookupReq
 struct parser_htLookupResp
 {
    ap_uint<PARSER_KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        hit;
    ap_uint<1>  source;
@@ -73,18 +73,18 @@ struct parser_htLookupResp
 struct parser_htUpdateReq
 {
    ap_uint<PARSER_KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    ap_uint<1>  source;
    parser_htUpdateReq() {}
-   parser_htUpdateReq(ap_uint<PARSER_KEY_SIZE> key, sessionState value1, msgBody value2, ap_uint<1> source)
+   parser_htUpdateReq(ap_uint<PARSER_KEY_SIZE> key, msgSessionState value1, msgBody value2, ap_uint<1> source)
       :key(key), value1(value1), value2(value2), source(source) {}
 };
 
 struct parser_htUpdateResp
 {
    ap_uint<PARSER_KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        success;
    ap_uint<1>  source;
@@ -93,11 +93,11 @@ struct parser_htUpdateResp
 struct parser_htEntry
 {
    ap_uint<PARSER_KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        valid;
    parser_htEntry() {}
-   parser_htEntry(ap_uint<PARSER_KEY_SIZE> key, sessionState value1, msgBody value2)
+   parser_htEntry(ap_uint<PARSER_KEY_SIZE> key, msgSessionState value1, msgBody value2)
       :key(key), value1(value1), value2(value2), valid(true) {}
 };
 

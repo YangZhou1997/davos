@@ -33,19 +33,19 @@ void msg_strip(
     // the initial states before parsing this word
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
     hls::stream<ap_uint<32> >& currWordValidLenFifo,
-    hls::stream<sessionState>& currSessionStateFifo,
+    hls::stream<msgSessionState>& currSessionStateFifo,
     hls::stream<msgBody>& currMsgBodyFifo,
     // the updated states to the next msg_strip after parsing this msg
     hls::stream<net_axis<DATA_WIDTH> >& currWordOutFifo,
     hls::stream<ap_uint<32> >& currWordValidLenOutFifo,
-    hls::stream<sessionState>& currSessionStateOutFifo,
+    hls::stream<msgSessionState>& currSessionStateOutFifo,
     hls::stream<msgBody>& currMsgBodyOutFifo,
     // the output of the parsed msg
     hls::stream<ap_uint<16> >& sessionIDOutFifo, // output
     hls::stream<msgHeader>& msgHeaderOutFifo,
     hls::stream<msgBody>& msgBodyOutFifo, 
     // the output of the parser states
-    hls::stream<sessionState>& sessionStateOutFifo,
+    hls::stream<msgSessionState>& msgSessionStateOutFifo,
     hls::stream<msgBody>& msgBodyStateOutFifo
 ){
 #pragma HLS PIPELINE II=1
@@ -56,7 +56,7 @@ void msg_strip(
         std::cout << "msg_strip IDX = " << IDX << std::endl;
         ap_uint<32> currWordValidLen = currWordValidLenFifo.read();
         net_axis<DATA_WIDTH> currWord = currWordFifo.read();
-        sessionState currSessionState = currSessionStateFifo.read();
+        msgSessionState currSessionState = currSessionStateFifo.read();
         msgBody currMsgBody = currMsgBodyFifo.read();
 
         std::cout << "currSessionState: " << std::endl;
@@ -194,8 +194,8 @@ void msg_strip(
                 currWordOutFifo.write(currWord);
             }
             currWordValidLenOutFifo.write(currWordValidLen);
-            // write out brand new sessionState and msgBody. 
-            currSessionStateOutFifo.write(sessionState(currSessionState.currSessionID));
+            // write out brand new msgSessionState and msgBody. 
+            currSessionStateOutFifo.write(msgSessionState(currSessionState.currSessionID));
             currMsgBodyOutFifo.write(msgBody(currMsgBody.currSessionID));
         }
         std::cout << "End of msgStrip: currWordValidLen=" << currWordValidLen << std::endl;
@@ -205,11 +205,11 @@ void msg_strip(
             currMsgBody.reset();
         }
         
-        // one word outputs a sessionState. 
+        // one word outputs a msgSessionState. 
         if(currWordValidLen == 0){
             currMsgBody.reserved = 1;
         }
-        sessionStateOutFifo.write(currSessionState);
+        msgSessionStateOutFifo.write(currSessionState);
         msgBodyStateOutFifo.write(currMsgBody);
     }
 }
@@ -265,15 +265,15 @@ void msgMux3to1(
 }
 
 void statesMux4to1(
-    hls::stream<sessionState>&        sessionStateFifo1,
+    hls::stream<msgSessionState>&        msgSessionStateFifo1,
     hls::stream<msgBody>&             msgBodyFifo1,
-    hls::stream<sessionState>&        sessionStateFifo2,
+    hls::stream<msgSessionState>&        msgSessionStateFifo2,
     hls::stream<msgBody>&             msgBodyFifo2,
-    hls::stream<sessionState>&        sessionStateFifo3,
+    hls::stream<msgSessionState>&        msgSessionStateFifo3,
     hls::stream<msgBody>&             msgBodyFifo3,
-    hls::stream<sessionState>&        sessionStateFifo4,
+    hls::stream<msgSessionState>&        msgSessionStateFifo4,
     hls::stream<msgBody>&             msgBodyFifo4,
-    hls::stream<sessionState>&        sessionStateFifo_out,
+    hls::stream<msgSessionState>&        msgSessionStateFifo_out,
     hls::stream<msgBody>&             msgBodyFifo_out
 ){
 #pragma HLS PIPELINE II=1
@@ -282,16 +282,16 @@ void statesMux4to1(
 	enum muxStateType{FWD1=0, FWD2, FWD3, FWD4};
     static muxStateType fsmState = FWD1;
 
-    ap_uint<1> fifo1_vld = (!sessionStateFifo1.empty() && !msgBodyFifo1.empty());
-    ap_uint<1> fifo2_vld = (!sessionStateFifo2.empty() && !msgBodyFifo2.empty());
-    ap_uint<1> fifo3_vld = (!sessionStateFifo3.empty() && !msgBodyFifo3.empty());
-    ap_uint<1> fifo4_vld = (!sessionStateFifo4.empty() && !msgBodyFifo4.empty());
+    ap_uint<1> fifo1_vld = (!msgSessionStateFifo1.empty() && !msgBodyFifo1.empty());
+    ap_uint<1> fifo2_vld = (!msgSessionStateFifo2.empty() && !msgBodyFifo2.empty());
+    ap_uint<1> fifo3_vld = (!msgSessionStateFifo3.empty() && !msgBodyFifo3.empty());
+    ap_uint<1> fifo4_vld = (!msgSessionStateFifo4.empty() && !msgBodyFifo4.empty());
     
     std::cout << "statesMux4to1 state: " << fsmState << std::endl;
     switch(fsmState) {
         case FWD1: {
             if(fifo1_vld){
-                sessionState sessionstate1 = sessionStateFifo1.read();
+                msgSessionState sessionstate1 = msgSessionStateFifo1.read();
                 msgBody msgbody1 = msgBodyFifo1.read();
                 std::cout << "statesMux4to1 sessionstate1" << std::endl;
                 sessionstate1.display();
@@ -301,7 +301,7 @@ void statesMux4to1(
                 else{
                     fsmState = FWD1;
                     msgbody1.reserved = 0;
-                    sessionStateFifo_out.write(sessionstate1);
+                    msgSessionStateFifo_out.write(sessionstate1);
                     msgBodyFifo_out.write(msgbody1);
                 }
             }
@@ -309,7 +309,7 @@ void statesMux4to1(
         }
         case FWD2: {
             if(fifo2_vld){
-                sessionState sessionstate2 = sessionStateFifo2.read();
+                msgSessionState sessionstate2 = msgSessionStateFifo2.read();
                 msgBody msgbody2 = msgBodyFifo2.read();
                 std::cout << "statesMux4to1 sessionstate2" << std::endl;
                 sessionstate2.display();
@@ -319,7 +319,7 @@ void statesMux4to1(
                 else{
                     fsmState = FWD1;
                     msgbody2.reserved = 0;
-                    sessionStateFifo_out.write(sessionstate2);
+                    msgSessionStateFifo_out.write(sessionstate2);
                     msgBodyFifo_out.write(msgbody2);
                 }
             }
@@ -327,7 +327,7 @@ void statesMux4to1(
         }
         case FWD3: {
             if(fifo3_vld){
-                sessionState sessionstate3 = sessionStateFifo3.read();
+                msgSessionState sessionstate3 = msgSessionStateFifo3.read();
                 msgBody msgbody3 = msgBodyFifo3.read();
                 std::cout << "statesMux4to1 sessionstate3" << std::endl;
                 sessionstate3.display();
@@ -337,7 +337,7 @@ void statesMux4to1(
                 else{
                     fsmState = FWD1;
                     msgbody3.reserved = 0;
-                    sessionStateFifo_out.write(sessionstate3);
+                    msgSessionStateFifo_out.write(sessionstate3);
                     msgBodyFifo_out.write(msgbody3);
                 }
             }
@@ -345,7 +345,7 @@ void statesMux4to1(
         }
         case FWD4: {
             if(fifo4_vld){
-                sessionState sessionstate4 = sessionStateFifo4.read();
+                msgSessionState sessionstate4 = msgSessionStateFifo4.read();
                 msgBody msgbody4 = msgBodyFifo4.read();
                 std::cout << "statesMux4to1 sessionstate4" << std::endl;
                 sessionstate4.display();
@@ -354,7 +354,7 @@ void statesMux4to1(
                 }
                 fsmState = FWD1;
                 msgbody4.reserved = 0;
-                sessionStateFifo_out.write(sessionstate4);
+                msgSessionStateFifo_out.write(sessionstate4);
                 msgBodyFifo_out.write(msgbody4);
             }
             break;
@@ -381,10 +381,10 @@ void parser(
     // the word waiting for parsing
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
     // the initial states before parsing this word
-    hls::stream<sessionState>& currSessionStateFifo,
+    hls::stream<msgSessionState>& currSessionStateFifo,
     hls::stream<msgBody>& currMsgBodyFifo,
     // the updated states after parsing this word
-    hls::stream<sessionState>& currSessionStateOutFifo,
+    hls::stream<msgSessionState>& currSessionStateOutFifo,
     hls::stream<msgBody>& currMsgBodyStateOutFifo,
     // the output of the parsed msg
     hls::stream<ap_uint<16> >& sessionIDOutFifo,
@@ -398,16 +398,16 @@ void parser(
     #pragma HLS stream variable=currWordValidLenFifo depth=2
 
     static hls::stream<ap_uint<32> >    currWordValidLenFifo1("currWordValidLenFifo1");
-    static hls::stream<sessionState>    currSessionStateFifo1("currSessionStateFifo1");
+    static hls::stream<msgSessionState>    currSessionStateFifo1("currSessionStateFifo1");
     static hls::stream<msgBody>         currMsgBodyFifo1("currMsgBodyFifo1");
     static hls::stream<ap_uint<32> >    currWordValidLenFifo2("currWordValidLenFifo2");
-    static hls::stream<sessionState>    currSessionStateFifo2("currSessionStateFifo2");
+    static hls::stream<msgSessionState>    currSessionStateFifo2("currSessionStateFifo2");
     static hls::stream<msgBody>         currMsgBodyFifo2("currMsgBodyFifo2");
     static hls::stream<ap_uint<32> >    currWordValidLenFifo3("currWordValidLenFifo3");
-    static hls::stream<sessionState>    currSessionStateFifo3("currSessionStateFifo3");
+    static hls::stream<msgSessionState>    currSessionStateFifo3("currSessionStateFifo3");
     static hls::stream<msgBody>         currMsgBodyFifo3("currMsgBodyFifo3");
     static hls::stream<ap_uint<32> >    currWordValidLenFifo4("currWordValidLenFifo4");
-    static hls::stream<sessionState>    currSessionStateFifo4("currSessionStateFifo4");
+    static hls::stream<msgSessionState>    currSessionStateFifo4("currSessionStateFifo4");
     static hls::stream<msgBody>         currMsgBodyFifo4("currMsgBodyFifo4");
     #pragma HLS stream variable=currWordValidLenFifo1 depth=2
     #pragma HLS stream variable=currSessionStateFifo1 depth=2
@@ -430,26 +430,26 @@ void parser(
     #pragma HLS DATA_PACK variable=currSessionStateFifo4
     #pragma HLS DATA_PACK variable=currMsgBodyFifo4
 
-    static hls::stream<sessionState>        sessionStateFifo1("sessionStateFifo1");
-    static hls::stream<sessionState>        sessionStateFifo2("sessionStateFifo2");
-    static hls::stream<sessionState>        sessionStateFifo3("sessionStateFifo3");
-    static hls::stream<sessionState>        sessionStateFifo4("sessionStateFifo4");
+    static hls::stream<msgSessionState>        msgSessionStateFifo1("msgSessionStateFifo1");
+    static hls::stream<msgSessionState>        msgSessionStateFifo2("msgSessionStateFifo2");
+    static hls::stream<msgSessionState>        msgSessionStateFifo3("msgSessionStateFifo3");
+    static hls::stream<msgSessionState>        msgSessionStateFifo4("msgSessionStateFifo4");
     static hls::stream<msgBody>             msgBodyStateFifo1("msgBodyStateFifo1");
     static hls::stream<msgBody>             msgBodyStateFifo2("msgBodyStateFifo2");
     static hls::stream<msgBody>             msgBodyStateFifo3("msgBodyStateFifo3");
     static hls::stream<msgBody>             msgBodyStateFifo4("msgBodyStateFifo4");
-    #pragma HLS stream variable=sessionStateFifo1 depth=2
-    #pragma HLS stream variable=sessionStateFifo2 depth=2
-    #pragma HLS stream variable=sessionStateFifo3 depth=2
-    #pragma HLS stream variable=sessionStateFifo4 depth=2
+    #pragma HLS stream variable=msgSessionStateFifo1 depth=2
+    #pragma HLS stream variable=msgSessionStateFifo2 depth=2
+    #pragma HLS stream variable=msgSessionStateFifo3 depth=2
+    #pragma HLS stream variable=msgSessionStateFifo4 depth=2
     #pragma HLS stream variable=msgBodyStateFifo1 depth=2
     #pragma HLS stream variable=msgBodyStateFifo2 depth=2
     #pragma HLS stream variable=msgBodyStateFifo3 depth=2
     #pragma HLS stream variable=msgBodyStateFifo4 depth=2
-    #pragma HLS DATA_PACK variable=sessionStateFifo1
-    #pragma HLS DATA_PACK variable=sessionStateFifo2
-    #pragma HLS DATA_PACK variable=sessionStateFifo3
-    #pragma HLS DATA_PACK variable=sessionStateFifo4
+    #pragma HLS DATA_PACK variable=msgSessionStateFifo1
+    #pragma HLS DATA_PACK variable=msgSessionStateFifo2
+    #pragma HLS DATA_PACK variable=msgSessionStateFifo3
+    #pragma HLS DATA_PACK variable=msgSessionStateFifo4
     #pragma HLS DATA_PACK variable=msgBodyStateFifo1
     #pragma HLS DATA_PACK variable=msgBodyStateFifo2
     #pragma HLS DATA_PACK variable=msgBodyStateFifo3
@@ -509,23 +509,23 @@ void parser(
 
     msg_strip<1, 0xa>(currWordFifo1, currWordValidLenFifo, currSessionStateFifo, currMsgBodyFifo, 
                       currWordFifo2, currWordValidLenFifo1, currSessionStateFifo1, currMsgBodyFifo1, 
-                      sessionIDFifo1, msgHeaderFifo1, msgBodyFifo1, sessionStateFifo1, msgBodyStateFifo1);
+                      sessionIDFifo1, msgHeaderFifo1, msgBodyFifo1, msgSessionStateFifo1, msgBodyStateFifo1);
     msg_strip<2, 0xb>(currWordFifo2, currWordValidLenFifo1, currSessionStateFifo1, currMsgBodyFifo1, 
                       currWordFifo3, currWordValidLenFifo2, currSessionStateFifo2, currMsgBodyFifo2, 
-                      sessionIDFifo2, msgHeaderFifo2, msgBodyFifo2, sessionStateFifo2, msgBodyStateFifo2);
+                      sessionIDFifo2, msgHeaderFifo2, msgBodyFifo2, msgSessionStateFifo2, msgBodyStateFifo2);
     msg_strip<3, 0xc>(currWordFifo3, currWordValidLenFifo2, currSessionStateFifo2, currMsgBodyFifo2, 
                       currWordFifo4, currWordValidLenFifo3, currSessionStateFifo3, currMsgBodyFifo3, 
-                      sessionIDFifo3, msgHeaderFifo3, msgBodyFifo3, sessionStateFifo3, msgBodyStateFifo3);
+                      sessionIDFifo3, msgHeaderFifo3, msgBodyFifo3, msgSessionStateFifo3, msgBodyStateFifo3);
     msg_strip<4, 0xd>(currWordFifo4, currWordValidLenFifo3, currSessionStateFifo3, currMsgBodyFifo3, 
                       currWordFifo5, currWordValidLenFifo4, currSessionStateFifo4, currMsgBodyFifo4, 
-                      sessionIDFifo4, msgHeaderFifo4, msgBodyFifo4, sessionStateFifo4, msgBodyStateFifo4);
+                      sessionIDFifo4, msgHeaderFifo4, msgBodyFifo4, msgSessionStateFifo4, msgBodyStateFifo4);
 
     msgMux3to1(sessionIDFifo1, msgHeaderFifo1, msgBodyFifo1, 
                 sessionIDFifo2, msgHeaderFifo2, msgBodyFifo2, 
                 sessionIDFifo3, msgHeaderFifo3, msgBodyFifo3, 
                 sessionIDOutFifo, msgHeaderOutFifo, msgBodyOutFifo);
     
-    statesMux4to1(sessionStateFifo1, msgBodyStateFifo1, sessionStateFifo2, msgBodyStateFifo2, 
-                sessionStateFifo3, msgBodyStateFifo3, sessionStateFifo4, msgBodyStateFifo4, 
+    statesMux4to1(msgSessionStateFifo1, msgBodyStateFifo1, msgSessionStateFifo2, msgBodyStateFifo2, 
+                msgSessionStateFifo3, msgBodyStateFifo3, msgSessionStateFifo4, msgBodyStateFifo4, 
                 currSessionStateOutFifo, currMsgBodyStateOutFifo);
 }

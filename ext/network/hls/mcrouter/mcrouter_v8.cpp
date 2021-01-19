@@ -118,7 +118,7 @@ void conn_manager(
 
 static ap_uint<16> connectedSessions[MAX_CONNECTED_SESSIONS];
 static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
-// static SoftTkoCount sessionState[];
+// static SoftTkoCount msgSessionState[];
 
 // !!! do not specify RAM_T2P_BRAM -- let HLS automatically use register with mux. 
 #pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_BRAM
@@ -382,10 +382,10 @@ void state_recovery(
     // the word waiting for parsing
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo_out, // output to parser
     // the external states before parsing this word
-    hls::stream<sessionState>&              currSessionStateFifo_out, // output to parser
+    hls::stream<msgSessionState>&              currSessionStateFifo_out, // output to parser
     hls::stream<msgBody>&                   currMsgBodyFifo_out, // output to parser
     // the updated states after parsing this word -- note these two might be out of order
-    hls::stream<sessionState>&              currSessionStateFifo_in, // states from parser
+    hls::stream<msgSessionState>&              currSessionStateFifo_in, // states from parser
     hls::stream<msgBody>&                   currMsgBodyFifo_in // states from parser
 ){
 #pragma HLS PIPELINE II=1
@@ -444,7 +444,7 @@ void state_recovery(
                     currMsgBodyFifo_out.write(rsp.value2);
                 }
                 else{
-                    rsp.value1 = sessionState(sessionID);
+                    rsp.value1 = msgSessionState(sessionID);
                     rsp.value2 = msgBody(sessionID);
                     currSessionStateFifo_out.write(rsp.value1);
                     currMsgBodyFifo_out.write(rsp.value2);
@@ -452,7 +452,7 @@ void state_recovery(
             }
             // these two must be in order with each other, as they will both appear in the end of a word. 
             else if(!currSessionStateFifo_in.empty() && !currMsgBodyFifo_in.empty()){
-                sessionState ss = currSessionStateFifo_in.read();
+                msgSessionState ss = currSessionStateFifo_in.read();
                 msgBody mb = currMsgBodyFifo_in.read();
                 ap_uint<16> sessionID = ss.currSessionID;
                 
@@ -476,7 +476,7 @@ void state_recovery(
                 }
             }
             // else if(!currSessionStateFifo_in.empty()){
-            //     sessionState ss = currSessionStateFifo_in.read();
+            //     msgSessionState ss = currSessionStateFifo_in.read();
             //     ap_uint<16> sessionID = ss.currSessionID;
             //     uint32_t slot = ac_stash_lookup(sessionID);
             //     msgBody mb = ac_parsingState2[slot];
@@ -505,7 +505,7 @@ void state_recovery(
             //     msgBody mb = currMsgBodyFifo_in.read();
             //     ap_uint<16> sessionID = mb.currSessionID;
             //     uint32_t slot = ac_stash_lookup(sessionID);
-            //     sessionState ss = ac_parsingState1[slot];
+            //     msgSessionState ss = ac_parsingState1[slot];
 
             //     if(ac_parsingState_rsp[slot] == 1){
             //         if(!ac_wordProcessingQueues[slot].empty()){
@@ -1393,13 +1393,13 @@ void mcrouter(
     static hls::stream<net_axis<DATA_WIDTH> > currWordFiFo_parser("currWordFiFo_parser");
     #pragma HLS stream variable=currWordFiFo_parser depth=8
     #pragma HLS DATA_PACK variable=currWordFiFo_parser
-    static hls::stream<sessionState> currSessionStateFifo_parser("currSessionStateFifo_parser");
+    static hls::stream<msgSessionState> currSessionStateFifo_parser("currSessionStateFifo_parser");
     #pragma HLS stream variable=currSessionStateFifo_parser depth=8
     #pragma HLS DATA_PACK variable=currSessionStateFifo_parser
     static hls::stream<msgBody> currMsgBodyFifo_parser("currMsgBodyFifo_parser");
     #pragma HLS stream variable=currMsgBodyFifo_parser depth=8
     #pragma HLS DATA_PACK variable=currMsgBodyFifo_parser
-    static hls::stream<sessionState> currSessionStateFifo_sr("currSessionStateFifo_sr");
+    static hls::stream<msgSessionState> currSessionStateFifo_sr("currSessionStateFifo_sr");
     #pragma HLS stream variable=currSessionStateFifo_sr depth=8
     #pragma HLS DATA_PACK variable=currSessionStateFifo_sr
     static hls::stream<msgBody> currMsgBodyFifo_sr("currMsgBodyFifo_sr");

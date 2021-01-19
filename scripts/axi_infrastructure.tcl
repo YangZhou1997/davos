@@ -110,9 +110,19 @@ set_property -dict [list CONFIG.TDATA_NUM_BYTES {4} CONFIG.Component_Name {axis_
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_register_slice_32/axis_register_slice_32.xci]
 update_compile_order -fileset sources_1
 
+create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_register_slice_40 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {5} CONFIG.Component_Name {axis_register_slice_40}] [get_ips axis_register_slice_40]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_register_slice_40/axis_register_slice_40.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_register_slice_48 -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {6} CONFIG.Component_Name {axis_register_slice_48}] [get_ips axis_register_slice_48]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_register_slice_48/axis_register_slice_48.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_register_slice_72 -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {9} CONFIG.Component_Name {axis_register_slice_72}] [get_ips axis_register_slice_72]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_register_slice_72/axis_register_slice_72.xci]
 update_compile_order -fileset sources_1
 
 create_ip -name axis_register_slice -vendor xilinx.com -library ip -version 1.1 -module_name axis_register_slice_88 -dir $device_ip_dir
@@ -199,6 +209,11 @@ set_property -dict [list CONFIG.TDATA_NUM_BYTES {4} CONFIG.IS_ACLK_ASYNC {1} CON
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_32_cc_cnt/axis_data_fifo_32_cc_cnt.xci]
 update_compile_order -fileset sources_1
 
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_40_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {5} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_40_cc_cnt}] [get_ips axis_data_fifo_40_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_40_cc_cnt/axis_data_fifo_40_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_48_cc_cnt -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {6} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_48_cc_cnt}] [get_ips axis_data_fifo_48_cc_cnt]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_48_cc_cnt/axis_data_fifo_48_cc_cnt.xci]
@@ -207,6 +222,11 @@ update_compile_order -fileset sources_1
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_64_cc_cnt -dir $device_ip_dir
 set_property -dict [list CONFIG.TDATA_NUM_BYTES {8} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_64_cc_cnt}] [get_ips axis_data_fifo_64_cc_cnt]
 generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_64_cc_cnt/axis_data_fifo_64_cc_cnt.xci]
+update_compile_order -fileset sources_1
+
+create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_72_cc_cnt -dir $device_ip_dir
+set_property -dict [list CONFIG.TDATA_NUM_BYTES {9} CONFIG.IS_ACLK_ASYNC {1} CONFIG.HAS_WR_DATA_COUNT {1} CONFIG.HAS_RD_DATA_COUNT {1} CONFIG.Component_Name {axis_data_fifo_72_cc_cnt}] [get_ips axis_data_fifo_72_cc_cnt]
+generate_target {instantiation_template} [get_files $device_ip_dir/axis_data_fifo_72_cc_cnt/axis_data_fifo_72_cc_cnt.xci]
 update_compile_order -fileset sources_1
 
 create_ip -name axis_data_fifo -vendor xilinx.com -library ip -version 2.0 -module_name axis_data_fifo_88_cc_cnt -dir $device_ip_dir

@@ -118,7 +118,7 @@ void conn_manager(
 
 static ap_uint<16> connectedSessions[MAX_CONNECTED_SESSIONS];
 static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
-// static SoftTkoCount sessionState[];
+// static SoftTkoCount msgSessionState[];
 
 // !!! do not specify RAM_T2P_BRAM -- let HLS automatically use register with mux. 
 #pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_URAM
@@ -381,10 +381,10 @@ void state_recovery(
     // the word waiting for parsing
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo_out, // output to parser
     // the external states before parsing this word
-    hls::stream<sessionState>&              currSessionStateFifo_out, // output to parser
+    hls::stream<msgSessionState>&              currSessionStateFifo_out, // output to parser
     hls::stream<msgBody>&                   currMsgBodyFifo_out, // output to parser
     // the updated states after parsing this word -- note these two might be out of order
-    hls::stream<sessionState>&              currSessionStateFifo_in, // states from parser
+    hls::stream<msgSessionState>&              currSessionStateFifo_in, // states from parser
     hls::stream<msgBody>&                   currMsgBodyFifo_in // states from parser
 ){
 #pragma HLS PIPELINE II=1
@@ -416,7 +416,7 @@ void state_recovery(
     #pragma HLS stream variable=ac_wordProcessingQueues[7] depth=4
     
     static uint32_t slot_g, slot_a, slot_b;
-    static sessionState ss;
+    static msgSessionState ss;
     static msgBody mb;
     static ap_uint<16> sessionID;
     static ap_uint<4> fsmState = 0;
@@ -438,7 +438,7 @@ void state_recovery(
                     currMsgBodyFifo_out.write(rsp.value2);
                 }
                 else{
-                    rsp.value1 = sessionState(currSessionID);
+                    rsp.value1 = msgSessionState(currSessionID);
                     rsp.value2 = msgBody(currSessionID);
                     currSessionStateFifo_out.write(rsp.value1);
                     currMsgBodyFifo_out.write(rsp.value2);
@@ -460,7 +460,7 @@ void state_recovery(
                 fsmState = 3;
             }
             // else if(!currSessionStateFifo_in.empty()){
-            //     sessionState ss = currSessionStateFifo_in.read();
+            //     msgSessionState ss = currSessionStateFifo_in.read();
             //     ap_uint<16> sessionID = ss.currSessionID;
             //     uint32_t slot = ac_stash_lookup(sessionID);
             //     msgBody mb = ac_parsingState2[slot];
@@ -489,7 +489,7 @@ void state_recovery(
             //     msgBody mb = currMsgBodyFifo_in.read();
             //     ap_uint<16> sessionID = mb.currSessionID;
             //     uint32_t slot = ac_stash_lookup(sessionID);
-            //     sessionState ss = ac_parsingState1[slot];
+            //     msgSessionState ss = ac_parsingState1[slot];
 
             //     if(ac_parsingState_rsp[slot] == 1){
             //         if(!ac_wordProcessingQueues[slot].empty()){
@@ -1155,6 +1155,52 @@ void dummy(
     }
 }
 
+void rx_app_stream_if(hls::stream<appReadRequest>&		appRxDataReq,
+					  hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+					  hls::stream<ap_uint<16> >&		appRxDataRspMetadata,
+					  hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+					  hls::stream<mmCmd>&				rxBufferReadCmd)
+{
+	#pragma HLS PIPELINE II=1
+	#pragma HLS INLINE off
+
+
+	static ap_uint<16>				rasi_readLength;
+	static ap_uint<1>				rasi_fsmState 	= 0;
+
+	switch (rasi_fsmState)
+	{
+		case 0:
+			if (!appRxDataReq.empty())
+			{
+				appReadRequest	app_read_request = appRxDataReq.read();
+ 				// Make sure length is not 0, otherwise Data Mover will hang up
+				if (app_read_request.length != 0)
+				{
+					// Get app pointer
+					rxApp2rxSar_upd_req.write(rxSarAppd(app_read_request.sessionID));
+					rasi_readLength = app_read_request.length;
+					rasi_fsmState = 1;
+				}
+			}
+			break;
+		case 1:
+			if (!rxSar2rxApp_upd_rsp.empty())
+			{
+				rxSarAppd	rxSar = rxSar2rxApp_upd_rsp.read();
+				appRxDataRspMetadata.write(rxSar.sessionID);
+				ap_uint<32> pkgAddr = 0;
+				pkgAddr(29, WINDOW_BITS) = rxSar.sessionID(13, 0);
+				pkgAddr(WINDOW_BITS-1, 0) = rxSar.appd;
+				rxBufferReadCmd.write(mmCmd(pkgAddr, rasi_readLength));
+				// Update app read pointer
+				rxApp2rxSar_upd_req.write(rxSarAppd(rxSar.sessionID, rxSar.appd+rasi_readLength)); // Update me
+				rasi_fsmState = 0;
+			}
+			break;
+	}
+}
+
 
 // @yang, this implements a TCP interface 
 void mcrouter(	
@@ -1164,9 +1210,10 @@ void mcrouter(
     // for mcrouter receiving notifications: either new data available or connection closed
 	hls::stream<appNotification>&	notifications,
     // for mcrouter requesting and receiving data
-	hls::stream<appReadRequest>&	readRequest,
-	hls::stream<ap_uint<16> >&		rxMetaData,
-	hls::stream<net_axis<DATA_WIDTH> >&		rxData,
+    hls::stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+    hls::stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+    hls::stream<mmCmd>&			    rxAppStreamIf2memAccessBreakdown,
+    hls::stream<net_axis<DATA_WIDTH> >&		rxData,
     // for mcrouter openning a connection
 	hls::stream<ipTuple>&			openConnection,
 	hls::stream<openStatus>&		openConStatus,
@@ -1210,13 +1257,15 @@ void mcrouter(
     //#pragma HLS INTERFACE axis register port=closePort name=m_axis_close_port
 
     #pragma HLS INTERFACE axis register port=notifications name=s_axis_notifications
-    #pragma HLS INTERFACE axis register port=readRequest name=m_axis_read_package
     #pragma HLS DATA_PACK variable=notifications
-    #pragma HLS DATA_PACK variable=readRequest
-
-    #pragma HLS INTERFACE axis register port=rxMetaData name=s_axis_rx_metadata
+    
+    #pragma HLS INTERFACE axis register port=rxSar2rxApp_upd_rsp name=s_rxsar_rxapp_upd_rsp
+	#pragma HLS INTERFACE axis register port=rxApp2rxSar_upd_req name=m_rxapp_rxsar_upd_req
+	#pragma HLS INTERFACE axis register port=rxAppStreamIf2memAccessBreakdown name=m_rxappstreamif_memaccessbreakdown
+	#pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
+    #pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
+    #pragma HLS DATA_PACK variable=rxAppStreamIf2memAccessBreakdown
     #pragma HLS INTERFACE axis register port=rxData name=s_axis_rx_data
-    //#pragma HLS DATA_PACK variable=rxMetaData
 
     #pragma HLS INTERFACE axis register port=openConnection name=m_axis_open_connection
     #pragma HLS INTERFACE axis register port=openConStatus name=s_axis_open_status
@@ -1334,15 +1383,6 @@ void mcrouter(
     #pragma HLS DATA_PACK variable=m_axis_upd_rsp1
 
 
-	// static hls::stream<mqInsertReq<ap_uint<32>> >	multiQueue_push("multiQueue_push");
-	// static hls::stream<hash_table_16_1024::mqPopReq>					multiQueue_pop_req("multiQueue_pop_req");
-	// static hls::stream<ap_uint<32>>					multiQueue_rsp("multiQueue_rsp");
-    // #pragma HLS stream variable=multiQueue_push depth=4
-    // #pragma HLS stream variable=multiQueue_pop_req depth=4
-    // #pragma HLS stream variable=multiQueue_rsp depth=4
-    // #pragma HLS DATA_PACK variable=multiQueue_push
-    // #pragma HLS DATA_PACK variable=multiQueue_pop_req
-    // #pragma HLS DATA_PACK variable=multiQueue_rsp
     static hls::stream<hash_table_16_1024::mqPushReq<16,32> >    mq_push_req("mq_push_req");
     static hls::stream<hash_table_16_1024::mqPopReq<16> >        mq_pop_req("mq_pop_req");
     static hls::stream<hash_table_16_1024::mqPushResp<16,32> >   mq_push_rsp("mq_push_rsp");
@@ -1399,29 +1439,34 @@ void mcrouter(
     static hls::stream<net_axis<DATA_WIDTH> > currWordFiFo_parser("currWordFiFo_parser");
     #pragma HLS stream variable=currWordFiFo_parser depth=4
     #pragma HLS DATA_PACK variable=currWordFiFo_parser
-    static hls::stream<sessionState> currSessionStateFifo_parser("currSessionStateFifo_parser");
+    static hls::stream<msgSessionState> currSessionStateFifo_parser("currSessionStateFifo_parser");
     #pragma HLS stream variable=currSessionStateFifo_parser depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_parser
     static hls::stream<msgBody> currMsgBodyFifo_parser("currMsgBodyFifo_parser");
     #pragma HLS stream variable=currMsgBodyFifo_parser depth=4
     #pragma HLS DATA_PACK variable=currMsgBodyFifo_parser
-    static hls::stream<sessionState> currSessionStateFifo_sr("currSessionStateFifo_sr");
+    static hls::stream<msgSessionState> currSessionStateFifo_sr("currSessionStateFifo_sr");
     #pragma HLS stream variable=currSessionStateFifo_sr depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_sr
     static hls::stream<msgBody> currMsgBodyFifo_sr("currMsgBodyFifo_sr");
     #pragma HLS stream variable=currMsgBodyFifo_sr depth=4
     #pragma HLS DATA_PACK variable=currMsgBodyFifo_sr
 
+    static hls::stream<ap_uint<16> > rxMetaDataFifo("rxMetaDataFifo");
+	#pragma HLS STREAM variable=rxMetaDataFifo depth=16
+	static hls::stream<appReadRequest> readRequestFifo("readRequestFifo");
+	#pragma HLS STREAM variable=readRequestFifo depth=16
+    #pragma HLS DATA_PACK variable=readRequestFifo
 
-    // initing a hash table block
+
+    rx_app_stream_if(readRequestFifo, rxSar2rxApp_upd_rsp, rxMetaDataFifo, rxApp2rxSar_upd_req, rxAppStreamIf2memAccessBreakdown);
+
     parser_stateman_top(s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp, m_axis_upd_rsp, regInsertFailureCount);
-    hash_table_32_32::hash_table_top(s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1, regInsertFailureCount1);
 
-    // initing a multi queue block
-    // multi_queue<ap_uint<32>, MAX_CONNECTED_SESSIONS, MAX_CONNECTED_SESSIONS*16>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
-    // multi_queue<ap_uint<32>, 65535, 65535*8>(multiQueue_push, multiQueue_pop_req, multiQueue_rsp);
+    // initing a hashing queue block
     hash_table_16_1024::hash_table_top(mq_push_req, mq_pop_req, mq_push_rsp, mq_pop_rsp, regInsertFailureCount2);
-
+    // initing a hash table block
+    hash_table_32_32::hash_table_top(s_axis_lup_req1, s_axis_upd_req1, m_axis_lup_rsp1, m_axis_upd_rsp1, regInsertFailureCount1);
 
     // opening the mcrouter listening port
 	open_port(listenPort, listenPortStatus);
@@ -1434,12 +1479,10 @@ void mcrouter(
             ipAddressIdx_debug, useConn_debug, sessionCount_debug);
     
     // handling new data arriving (it might come from a new session), and connection closed
-	notification_handler(notifications, readRequest, mc_closedSessionIdFifo);
+	notification_handler(notifications, readRequestFifo, mc_closedSessionIdFifo);
     
     // read data from network and parse them into msgFifo
-    // parser(rxMetaData, rxData, mc_sessionIdFifo0, mc_msgHeaderFifo0, mc_msgBodyFifo0, 
-    //         s_axis_lup_req, s_axis_upd_req, m_axis_lup_rsp);
-    admission_control1(rxMetaData, rxData);
+    admission_control1(rxMetaDataFifo, rxData);
     admission_control2(sessionStashLookupFifo, sessionStashLookupRspFifo, s_axis_lup_req, rxMetaData_sr, rxData_sr);
     state_recovery(rxMetaData_sr, rxData_sr, sessionStashLookupFifo, sessionStashLookupRspFifo, m_axis_lup_rsp, m_axis_upd_rsp, s_axis_upd_req, 
             currWordFiFo_parser, currSessionStateFifo_parser, currMsgBodyFifo_parser, currSessionStateFifo_sr, currMsgBodyFifo_sr);

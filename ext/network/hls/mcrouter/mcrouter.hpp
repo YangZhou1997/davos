@@ -70,7 +70,7 @@ const uint32_t AC_STASH_SIZE = 8;
 static ap_uint<AC_STASH_SIZE> ac_valid_stashTable = ~(uint64_t)0;
 static ap_uint<16> ac_sessionID_stashTable[AC_STASH_SIZE];
 // static ap_uint<2> ac_parsingState_rsp[AC_STASH_SIZE];
-// static sessionState ac_parsingState1[AC_STASH_SIZE];
+// static msgSessionState ac_parsingState1[AC_STASH_SIZE];
 // static msgBody ac_parsingState2[AC_STASH_SIZE];
 
 int ac_stash_insert(ap_uint<16> sessionID);
@@ -80,9 +80,8 @@ bool ac_stash_remove(ap_uint<16> sessionID);
 /** @defgroup mcrouter Echo Server Application
  *
  */
-void mcrouter(hls::stream<ap_uint<16> >& listenPort, hls::stream<bool>& listenPortStatus,
-			hls::stream<appNotification>& notifications, hls::stream<appReadRequest>& readRequest,
-			hls::stream<ap_uint<16> >& rxMetaData, hls::stream<net_axis<DATA_WIDTH> >& rxData,
+void mcrouter(hls::stream<ap_uint<16> >& listenPort, hls::stream<bool>& listenPortStatus, hls::stream<appNotification>& notifications, 
+            hls::stream<rxSarAppd>&	rxSar2rxApp_upd_rsp, hls::stream<rxSarAppd>& rxApp2rxSar_upd_req, hls::stream<mmCmd>& rxAppStreamIf2memAccessBreakdown, hls::stream<net_axis<DATA_WIDTH> >& rxData,
 			hls::stream<ipTuple>& openConnection, hls::stream<openStatus>& openConStatus, hls::stream<ap_uint<16> >& closeConnection,
 			hls::stream<appTxMeta>& txMetaData, hls::stream<net_axis<DATA_WIDTH> >& txData, hls::stream<appTxRsp>& txStatus, 
             ap_uint<14>		useConn,

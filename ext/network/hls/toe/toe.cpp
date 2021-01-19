@@ -352,14 +352,10 @@ void rxAppMemDataRead(	stream<ap_uint<1> >&	rxBufferReadCmd,
 
 
 template <int WIDTH>
-void rxAppWrapper(	stream<appReadRequest>&			appRxDataReq,
-					stream<rxSarAppd>&				rxSar2rxApp_upd_rsp,
-					stream<ap_uint<16> >&			appListenPortReq,
+void rxAppWrapper(	stream<ap_uint<16> >&			appListenPortReq,
 					stream<bool>&					portTable2rxApp_listen_rsp,
 					stream<appNotification>&		rxEng2rxApp_notification,
 					stream<appNotification>&		timer2rxApp_notification,
-					stream<ap_uint<16> >&			appRxDataRspMetadata,
-					stream<rxSarAppd>&				rxApp2rxSar_upd_req,
 #if !(RX_DDR_BYPASS)
 					stream<mmCmd>&					rxBufferReadCmd,
 #endif
@@ -367,14 +363,13 @@ void rxAppWrapper(	stream<appReadRequest>&			appRxDataReq,
 					stream<ap_uint<16> >& 			rxApp2portTable_listen_req,
 					stream<appNotification>&		appNotification,
 					stream<net_axis<WIDTH> > 				&rxBufferReadData,
-					stream<net_axis<WIDTH> > 				&rxDataRsp)
+					stream<net_axis<WIDTH> > 				&rxDataRsp, 
+                    stream<mmCmd>&			        rxAppStreamIf2memAccessBreakdown)
 {
 	#pragma HLS INLINE
 	#pragma HLS PIPELINE II=1
 
-	static stream<mmCmd>			rxAppStreamIf2memAccessBreakdown("rxAppStreamIf2memAccessBreakdown");
 	static stream<ap_uint<1> >		rxAppDoubleAccess("rxAppDoubleAccess");
-	#pragma HLS stream variable=rxAppStreamIf2memAccessBreakdown	depth=16
 	#pragma HLS stream variable=rxAppDoubleAccess					depth=16
 
 #if (RX_DDR_BYPASS)
@@ -384,8 +379,9 @@ void rxAppWrapper(	stream<appReadRequest>&			appRxDataReq,
 
 	 // RX Application Stream Interface
 #if !(RX_DDR_BYPASS)
-	rx_app_stream_if(appRxDataReq, rxSar2rxApp_upd_rsp, appRxDataRspMetadata,
-						rxApp2rxSar_upd_req, rxAppStreamIf2memAccessBreakdown);
+    // @yang, exposing rx_app_stream_if directly to application, so that app can issue read to the dram controller directly. 
+	// rx_app_stream_if(appRxDataReq, rxSar2rxApp_upd_rsp, appRxDataRspMetadata,
+	// 					rxApp2rxSar_upd_req, rxAppStreamIf2memAccessBreakdown);
 	rxAppMemAccessBreakdown(rxAppStreamIf2memAccessBreakdown, rxBufferReadCmd, rxAppDoubleAccess);
 	rxAppMemDataRead<WIDTH>(rxBufferReadData, rxDataRsp, rxAppDoubleAccess);
 #else
@@ -426,14 +422,12 @@ void rxAppWrapper(	stream<appReadRequest>&			appRxDataReq,
  *  @param[out]		sessionUpdate_req
  *  @param[out]		writeNewSessionId
  *  @param[in]		listenPortReq
- *  @param[in]		rxDataReq
  *  @param[in]		openConnReq
  *  @param[in]		closeConnReq
  *  @param[in]		txDataReqMeta
  *  @param[in]		txDataReq
  *  @param[out]		listenPortRsp
  *  @param[out]		notification
- *  @param[out]		rxDataRspMeta
  *  @param[out]		rxDataRsp
  *  @param[out]		openConnRsp
  *  @param[out]		txDataRsp
@@ -469,7 +463,6 @@ void toe(	// Data & Memory Interface
 			stream<ap_uint<16> >&					listenPortReq,
 			// This is disabled for the time being, due to complexity concerns
 			//stream<ap_uint<16> >&					appClosePortIn,
-			stream<appReadRequest>&					rxDataReq,
 			stream<ipTuple>&						openConnReq,
 			stream<ap_uint<16> >&					closeConnReq,
 			stream<appTxMeta>&					   txDataReqMeta,
@@ -477,7 +470,6 @@ void toe(	// Data & Memory Interface
 
 			stream<bool>&							listenPortRsp,
 			stream<appNotification>&				notification,
-			stream<ap_uint<16> >&					rxDataRspMeta,
 			stream<net_axis<WIDTH> >&						rxDataRsp,
 			stream<openStatus>&						openConnRsp,
 			stream<appTxRsp>&					txDataRsp,
@@ -489,7 +481,10 @@ void toe(	// Data & Memory Interface
 			//IP Address Input
 			ap_uint<32>								myIpAddress,
 			//statistic
-			ap_uint<16>&							regSessionCount)
+			ap_uint<16>&							regSessionCount, 
+            stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+            stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+            stream<mmCmd>&			rxAppStreamIf2memAccessBreakdown)
 {
 	#pragma HLS INLINE
 
@@ -537,20 +532,14 @@ void toe(	// Data & Memory Interface
 	// RX Sar Table
 	static stream<rxSarRecvd>			rxEng2rxSar_upd_req("rxEng2rxSar_upd_req");
 	static stream<rxSarEntry>			rxSar2rxEng_upd_rsp("rxSar2rxEng_upd_rsp");
-	static stream<rxSarAppd>			rxApp2rxSar_upd_req("rxApp2rxSar_upd_req");
-	static stream<rxSarAppd>			rxSar2rxApp_upd_rsp("rxSar2rxApp_upd_rsp");
 	static stream<ap_uint<16> >			txEng2rxSar_req("txEng2rxSar_req");
 	static stream<rxSarReply>			rxSar2txEng_rsp("rxSar2txEng_rsp");
 	#pragma HLS stream variable=rxEng2rxSar_upd_req		depth=2
 	#pragma HLS stream variable=rxSar2rxEng_upd_rsp		depth=2
-	#pragma HLS stream variable=rxApp2rxSar_upd_req		depth=2
-	#pragma HLS stream variable=rxSar2rxApp_upd_rsp		depth=2
 	#pragma HLS stream variable=txEng2rxSar_req			depth=2
 	#pragma HLS stream variable=rxSar2txEng_rsp			depth=2
 	#pragma HLS DATA_PACK variable=rxEng2rxSar_upd_req
 	#pragma HLS DATA_PACK variable=rxSar2rxEng_upd_rsp
-	#pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
-	#pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
 	#pragma HLS DATA_PACK variable=rxSar2txEng_rsp
 
 	// TX Sar Table
@@ -649,7 +638,8 @@ void toe(	// Data & Memory Interface
 
    static stream<net_axis<WIDTH> >                 txApp2txEng_data_stream("txApp2txEng_data_stream");
    #pragma HLS stream variable=txApp2txEng_data_stream   depth=1024
-	/*
+	
+    /*
 	 * Data Structures
 	 */
 	// Session Lookup Controller
@@ -777,14 +767,10 @@ void toe(	// Data & Memory Interface
 	/*
 	 * Application Interfaces
 	 */
-	 rxAppWrapper<WIDTH>(	rxDataReq,
-			 	 	rxSar2rxApp_upd_rsp,
-			 	 	listenPortReq,
+	 rxAppWrapper<WIDTH>(listenPortReq,
 			 	 	portTable2rxApp_listen_rsp,
 			 	 	rxEng2rxApp_notification,
 			 	 	timer2rxApp_notification,
-			 	 	rxDataRspMeta,
-			 	 	rxApp2rxSar_upd_req,
 #if !(RX_DDR_BYPASS)
 			 	 	rxBufferReadCmd,
 #endif
@@ -792,7 +778,8 @@ void toe(	// Data & Memory Interface
 			 	 	rxApp2portTable_listen_req,
 			 	 	notification,
 			 	 	rxBufferReadData,
-					rxDataRsp);
+					rxDataRsp,
+                    rxAppStreamIf2memAccessBreakdown);
 
 	tx_app_interface<WIDTH>(	txDataReqMeta,
 						txDataReq,
@@ -852,7 +839,6 @@ void toe_top(	// Data & Memory Interface
 			stream<ap_uint<16> >&					listenPortReq,
 			// This is disabled for the time being, due to complexity concerns
 			//stream<ap_uint<16> >&					appClosePortIn,
-			stream<appReadRequest>&					rxDataReq,
 			stream<ipTuple>&						openConnReq,
 			stream<ap_uint<16> >&					closeConnReq,
 			stream<appTxMeta>&					   txDataReqMeta,
@@ -860,7 +846,6 @@ void toe_top(	// Data & Memory Interface
 
 			stream<bool>&							listenPortRsp,
 			stream<appNotification>&				notification,
-			stream<ap_uint<16> >&					rxDataRspMeta,
 			stream<net_axis<DATA_WIDTH> >&						rxDataRsp,
 			stream<openStatus>&						openConnRsp,
 			stream<appTxRsp>&					txDataRsp,
@@ -872,7 +857,10 @@ void toe_top(	// Data & Memory Interface
 			//IP Address Input
 			ap_uint<32>								myIpAddress,
 			//statistic
-			ap_uint<16>&							regSessionCount)
+			ap_uint<16>&							regSessionCount, 
+            stream<rxSarAppd>&			rxSar2rxApp_upd_rsp,
+            stream<rxSarAppd>&			rxApp2rxSar_upd_req,
+            stream<mmCmd>&			rxAppStreamIf2memAccessBreakdown)
 {
 #pragma HLS DATAFLOW disable_start_propagation
 #pragma HLS INTERFACE ap_ctrl_none port=return
@@ -925,9 +913,7 @@ void toe_top(	// Data & Memory Interface
 	#pragma HLS INTERFACE axis register port=listenPortReq name=s_axis_listen_port_req
 
 	#pragma HLS INTERFACE axis register port=notification name=m_axis_notification
-	#pragma HLS INTERFACE axis register port=rxDataReq name=s_axis_rx_data_req
 
-	#pragma HLS INTERFACE axis register port=rxDataRspMeta name=m_axis_rx_data_rsp_metadata
 	#pragma HLS INTERFACE axis register port=rxDataRsp name=m_axis_rx_data_rsp
 
 	#pragma HLS INTERFACE axis register port=openConnReq name=s_axis_open_conn_req
@@ -938,7 +924,6 @@ void toe_top(	// Data & Memory Interface
 	#pragma HLS INTERFACE axis register port=txDataReq name=s_axis_tx_data_req
 	#pragma HLS INTERFACE axis register port=txDataRsp name=m_axis_tx_data_rsp
 	#pragma HLS DATA_PACK variable=notification
-	#pragma HLS DATA_PACK variable=rxDataReq
 	#pragma HLS DATA_PACK variable=openConnReq
 	#pragma HLS DATA_PACK variable=openConnRsp
 	#pragma HLS DATA_PACK variable=txDataReqMeta
@@ -951,6 +936,25 @@ void toe_top(	// Data & Memory Interface
 
 	#pragma HLS INTERFACE ap_stable register port=myIpAddress
 	#pragma HLS INTERFACE ap_vld port=regSessionCount
+
+
+	#pragma HLS INTERFACE axis register port=rxSar2rxApp_upd_rsp name=m_rxsar_rxapp_upd_rsp
+	#pragma HLS INTERFACE axis register port=rxApp2rxSar_upd_req name=s_rxapp_rxsar_upd_req
+	#pragma HLS INTERFACE axis register port=rxAppStreamIf2memAccessBreakdown name=s_rxappstreamif_memaccessbreakdown
+	#pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
+    #pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
+    #pragma HLS DATA_PACK variable=rxAppStreamIf2memAccessBreakdown
+	
+
+    // static stream<rxSarAppd>			rxApp2rxSar_upd_req("rxApp2rxSar_upd_req");
+	// static stream<rxSarAppd>			rxSar2rxApp_upd_rsp("rxSar2rxApp_upd_rsp");
+	// #pragma HLS stream variable=rxApp2rxSar_upd_req		depth=2
+	// #pragma HLS stream variable=rxSar2rxApp_upd_rsp		depth=2
+	// #pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
+	// #pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
+	
+	// static stream<mmCmd>			rxAppStreamIf2memAccessBreakdown("rxAppStreamIf2memAccessBreakdown");
+	// #pragma HLS stream variable=rxAppStreamIf2memAccessBreakdown	depth=16
 
 	toe<DATA_WIDTH>(ipRxData,
 #if !(RX_DDR_BYPASS)
@@ -974,14 +978,12 @@ void toe_top(	// Data & Memory Interface
 					sessionUpdate_req,
 					
 					listenPortReq,
-					rxDataReq,
 					openConnReq,
 					closeConnReq,
 					txDataReqMeta,
 					txDataReq,
 					listenPortRsp,
 					notification,
-					rxDataRspMeta,
 					rxDataRsp,
 					openConnRsp,
 					txDataRsp,
@@ -990,5 +992,8 @@ void toe_top(	// Data & Memory Interface
 					axis_max_data_count,
 #endif
 					myIpAddress,
-					regSessionCount);
+					regSessionCount, 
+                    rxSar2rxApp_upd_rsp, 
+                    rxApp2rxSar_upd_req,
+                    rxAppStreamIf2memAccessBreakdown);
 }

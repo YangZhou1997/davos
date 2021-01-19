@@ -163,7 +163,7 @@ struct msgBody {
 };
 
 #define MEMCACHED_HDRLEN 24 // bytes
-struct sessionState {
+struct msgSessionState {
     ap_uint<MEMCACHED_HDRLEN*8>       msgHeaderBuff; // assembling buffer for memcached message header 
     
     ap_uint<1>          parsingHeaderState; // indicate whether parsing header is done
@@ -175,7 +175,7 @@ struct sessionState {
 
     ap_uint<16>         currSessionID;
     
-    sessionState() {
+    msgSessionState() {
         msgHeaderBuff = 0;
         parsingHeaderState = 0;
         parsingBodyState = 0;
@@ -184,7 +184,7 @@ struct sessionState {
         currBodyLen = 0;
         currSessionID = 0;
     }
-    sessionState(ap_uint<16> _currSessionID) {
+    msgSessionState(ap_uint<16> _currSessionID) {
         msgHeaderBuff = 0;
         parsingHeaderState = 0;
         parsingBodyState = 0;

@@ -106,9 +106,9 @@ bool parser_stash_remove(ap_uint<16> sessionID);
 
 void parser(
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo,
-    hls::stream<sessionState>&              currSessionStateFifo,
+    hls::stream<msgSessionState>&              currSessionStateFifo,
     hls::stream<msgBody>&                   currMsgBodyFifo,
-    hls::stream<sessionState>&              currSessionStateOutFifo,
+    hls::stream<msgSessionState>&              currSessionStateOutFifo,
     hls::stream<msgBody>&                   currMsgBodyStateOutFifo,
     hls::stream<ap_uint<16> >&              sessionIDFifo_out,
     hls::stream<msgHeader>&                 msgHeaderOutFifo,

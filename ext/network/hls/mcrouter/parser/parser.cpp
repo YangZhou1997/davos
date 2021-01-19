@@ -34,16 +34,16 @@ void bodyID(
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLen_initFifo_in,
-    hls::stream<sessionState>& currSessionStateFifo_in,
+    hls::stream<msgSessionState>& currSessionStateFifo_in,
     // the updated states to the next msgStripper iteration (via mux2to1)
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_inner,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_inner,
     hls::stream<ap_uint<32> >& currWordValidLen_initFifo_inner,
-    hls::stream<sessionState>& currSessionStateFifo_inner,
+    hls::stream<msgSessionState>& currSessionStateFifo_inner,
     // the states to bodyExtractor
     hls::stream<bodyExtState>& bodyExtractorStateFifo_out,
     // the output of the parser states
-    hls::stream<sessionState>& currSessionStateFifo_out
+    hls::stream<msgSessionState>& currSessionStateFifo_out
 ){
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
@@ -53,7 +53,7 @@ void bodyID(
         ap_uint<32> currWordValidLen = currWordValidLenFifo_in.read();
         ap_uint<32> currWordValidLen_init = currWordValidLen_initFifo_in.read();
         net_axis<DATA_WIDTH> currWord = currWordFifo_in.read();
-        sessionState currSessionState = currSessionStateFifo_in.read();
+        msgSessionState currSessionState = currSessionStateFifo_in.read();
         ap_uint<16> currSessionID = currSessionState.currSessionID;
 
         std::cout << "currSessionID" << currSessionID << " currSessionState: " << std::endl;
@@ -183,12 +183,12 @@ void bodyID(
             currWordFifo_inner.write(currWord);
             currWordValidLenFifo_inner.write(currWordValidLen);
             currWordValidLen_initFifo_inner.write(currWordValidLen_init);
-            // write out brand new sessionState to next bodyID iteration. 
-            currSessionStateFifo_inner.write(sessionState(currSessionID));
+            // write out brand new msgSessionState to next bodyID iteration. 
+            currSessionStateFifo_inner.write(msgSessionState(currSessionID));
         }
         else if(currWordValidLen == 0){
             if(parsingMsgState){
-                currSessionStateFifo_out.write(sessionState(currSessionID));
+                currSessionStateFifo_out.write(msgSessionState(currSessionID));
             }
             else{
                 currSessionStateFifo_out.write(currSessionState);
@@ -393,10 +393,10 @@ void msgStripper(
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLenFifo_in,
     hls::stream<ap_uint<32> >& currWordValidLen_initFifo_in,
-    hls::stream<sessionState>& currSessionStateFifo_in,
+    hls::stream<msgSessionState>& currSessionStateFifo_in,
     hls::stream<msgBody>& currMsgBodyFifo_in,
     // the output of the parser states
-    hls::stream<sessionState>& currSessionStateFifo_out,
+    hls::stream<msgSessionState>& currSessionStateFifo_out,
     hls::stream<msgBody>& currMsgBodyFifo_out, 
     // the output of the parsed msg
     hls::stream<ap_uint<16> >& sessionIDFifo_out,
@@ -411,7 +411,7 @@ void msgStripper(
     #pragma HLS stream variable=currWordValidLenFifo_inner depth=4
     static hls::stream<ap_uint<32> > currWordValidLen_initFifo_inner;
     #pragma HLS stream variable=currWordValidLen_initFifo_inner depth=4
-    static hls::stream<sessionState> currSessionStateFifo_inner;
+    static hls::stream<msgSessionState> currSessionStateFifo_inner;
     #pragma HLS stream variable=currSessionStateFifo_inner depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_inner
     
@@ -421,7 +421,7 @@ void msgStripper(
     #pragma HLS stream variable=currWordValidLenFifo_in2 depth=4
     static hls::stream<ap_uint<32> > currWordValidLen_initFifo_in2;
     #pragma HLS stream variable=currWordValidLen_initFifo_in2 depth=4
-    static hls::stream<sessionState> currSessionStateFifo_in2;
+    static hls::stream<msgSessionState> currSessionStateFifo_in2;
     #pragma HLS stream variable=currSessionStateFifo_in2 depth=4
     #pragma HLS DATA_PACK variable=currSessionStateFifo_in2
 
@@ -477,10 +477,10 @@ void parser(
     // the word waiting for parsing
     hls::stream<net_axis<DATA_WIDTH> >& currWordFifo,
     // the external states before parsing this word
-    hls::stream<sessionState>& currSessionStateFifo,
+    hls::stream<msgSessionState>& currSessionStateFifo,
     hls::stream<msgBody>& currMsgBodyFifo,
     // the updated states after parsing this word -- note these two might be out of order
-    hls::stream<sessionState>& currSessionStateFifo_out,
+    hls::stream<msgSessionState>& currSessionStateFifo_out,
     hls::stream<msgBody>& currMsgBodyFifo_out,
     // the output of the parsed msg
     hls::stream<ap_uint<16> >& sessionIDFifo_out,

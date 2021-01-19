@@ -68,7 +68,7 @@ struct htLookupReq
 struct htLookupResp
 {
    ap_uint<KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        hit;
    ap_uint<1>  source;
@@ -77,18 +77,18 @@ struct htLookupResp
 struct htUpdateReq
 {
    ap_uint<KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    ap_uint<1>  source;
    htUpdateReq() {}
-   htUpdateReq(ap_uint<KEY_SIZE> key, sessionState value1, msgBody value2, ap_uint<1> source)
+   htUpdateReq(ap_uint<KEY_SIZE> key, msgSessionState value1, msgBody value2, ap_uint<1> source)
       :key(key), value1(value1), value2(value2), source(source) {}
 };
 
 struct htUpdateResp
 {
    ap_uint<KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        success;
    ap_uint<1>  source;
@@ -97,11 +97,11 @@ struct htUpdateResp
 struct htEntry
 {
    ap_uint<KEY_SIZE>  key;
-   sessionState value1;
+   msgSessionState value1;
    msgBody value2;
    bool        valid;
    htEntry() {}
-   htEntry(ap_uint<KEY_SIZE> key, sessionState value1, msgBody value2)
+   htEntry(ap_uint<KEY_SIZE> key, msgSessionState value1, msgBody value2)
       :key(key), value1(value1), value2(value2), valid(true) {}
 };
 

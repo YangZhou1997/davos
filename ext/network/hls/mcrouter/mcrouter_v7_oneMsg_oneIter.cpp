@@ -95,7 +95,7 @@ void conn_manager(
 
 static ap_uint<16> connectedSessions[MAX_CONNECTED_SESSIONS];
 static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
-// static SoftTkoCount sessionState[];
+// static SoftTkoCount msgSessionState[];
 
 // !!! do not specify RAM_T2P_BRAM -- let HLS automatically use register with mux. 
 #pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_BRAM
@@ -233,8 +233,8 @@ void notification_handler(
 //     // static value gets inited to zero by default. 
 //     // multile queues 
 //     // !!! how to store session words. 
-//     #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-//     #pragma HLS DEPENDENCE variable=sessionStateTable inter false
+//     #pragma HLS RESOURCE variable=msgSessionStateTable core=RAM_T2P_BRAM
+//     #pragma HLS DEPENDENCE variable=msgSessionStateTable inter false
 
 //     ap_uint<4> fsmState = 0;
 
@@ -246,7 +246,7 @@ void notification_handler(
 
 // }
 
-void parsingMsgBody(sessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
+void parsingMsgBody(msgSessionState& currSessionState, msgBody& currMsgBody, msgHeader& currMsgHeader, \
     net_axis<DATA_WIDTH>& currWord, ap_uint<16>& currWordValidLen, ap_uint<16>& currWordValidLen_init){
 #pragma HLS INLINE
 
@@ -300,9 +300,9 @@ void parser(
     static ap_uint<32> currRxTransID = 1;
 
     // static value gets inited to zero by default. 
-    static sessionState sessionStateTable[MAX_SESSION_NUM];
-    #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-    #pragma HLS DEPENDENCE variable=sessionStateTable inter false
+    static msgSessionState msgSessionStateTable[MAX_SESSION_NUM];
+    #pragma HLS RESOURCE variable=msgSessionStateTable core=RAM_T2P_BRAM
+    #pragma HLS DEPENDENCE variable=msgSessionStateTable inter false
 
     enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
 #ifndef __SYNTHESIS__
@@ -311,7 +311,7 @@ void parser(
     static axisFsmType currAxisState = IDLE;
 
 	static ap_uint<16>          currSessionID; // valid when currAxisState becomes on-going
-    static sessionState         currSessionState; // valid when currAxisState becomes on-going
+    static msgSessionState         currSessionState; // valid when currAxisState becomes on-going
     
     static msgBody              currMsgBody;
     static msgHeader            currMsgHeader;
@@ -349,8 +349,8 @@ void parser(
                 std::cout << "RECOVER_STATE " << response.hit << std::endl;
                 // we should expect the hash table is enough to handle all active connections; 
                 
-                // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
-                currSessionState = sessionStateTable[currSessionID];
+                // recoverying msgSessionState. Note that currSessionState also contains the currMsgHeader 
+                currSessionState = msgSessionStateTable[currSessionID];
                 std::cout << "currSessionState: " << std::endl;
                 currSessionState.display();
             
@@ -495,7 +495,7 @@ void parser(
                 currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
                 // the AXIS for current session still has data to parse; we do not need to store currSessionState back.  
-                // sessionStateTable[currSessionID] = currSessionState;
+                // msgSessionStateTable[currSessionID] = currSessionState;
 
                 currSessionState.reset(); // ready to parse next message
                 currMsgBody.msgID = currentMsgID;
@@ -523,15 +523,15 @@ void parser(
                 currMsgHeader.display();
                 currMsgBody.display(currMsgHeader.extLen, currMsgHeader.keyLen, currMsgHeader.val_len());
 
-                sessionStateTable[currSessionID].reset();
+                msgSessionStateTable[currSessionID].reset();
                 s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
             }
             else{
                 if(currMsgBody.msgID != 0)std::cout << "currMsgBody.msgID = " << currMsgBody.msgID << ": ";
-                std::cout << "storing sessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
+                std::cout << "storing msgSessionState and currMsgBody back: currSessionID " << currSessionID << " currMsgBody.msgID " << currMsgBody.msgID << std::endl;
                 
-                // In the end of each AXIS, store sessionState and currMsgBody back. 
-                sessionStateTable[currSessionID] = currSessionState;
+                // In the end of each AXIS, store msgSessionState and currMsgBody back. 
+                msgSessionStateTable[currSessionID] = currSessionState;
                 s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
                 // TODO: optimization: implementing hash table with a stash, such that read and write can finish in one cycle. 
                 // TODO: or store currMsgBody in URAM. 

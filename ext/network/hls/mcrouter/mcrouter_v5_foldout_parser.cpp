@@ -95,7 +95,7 @@ void conn_manager(
 
 static ap_uint<16> connectedSessions[MAX_CONNECTED_SESSIONS];
 static ap_uint<1> connectedSessionsSts[MAX_CONNECTED_SESSIONS];
-// static SoftTkoCount sessionState[];
+// static SoftTkoCount msgSessionState[];
 
 // !!! do not specify RAM_T2P_BRAM -- let HLS automatically use register with mux. 
 #pragma HLS RESOURCE variable=connectedSessions core=RAM_T2P_BRAM
@@ -221,11 +221,11 @@ void notification_handler(
 void parser_state(
     // lookup channel: 
     hls::stream<ap_uint<16> >& sessionIdFifo, // input
-    hls::stream<sessionState>& sessionStateFifo, // output
+    hls::stream<msgSessionState>& msgSessionStateFifo, // output
     hls::stream<msgBody>& msgBodyFiFo, // output
     // update channel: 
     hls::stream<ap_uint<16> >& sessionIdFifo2, // input
-    hls::stream<sessionState>& sessionStateFifo2, // input
+    hls::stream<msgSessionState>& msgSessionStateFifo2, // input
     hls::stream<msgBody>& msgBodyFiFo2, // input
     // external hash table
     hls::stream<hash_table_16_1024::htLookupReq<16> >&       s_axis_lup_req, 
@@ -235,20 +235,20 @@ void parser_state(
 #pragma HLS PIPELINE II=1
 #pragma HLS INLINE off
     // static value gets inited to zero by default. 
-    static sessionState sessionStateTable[MAX_SESSION_NUM];
-    #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-    #pragma HLS DEPENDENCE variable=sessionStateTable inter false
+    static msgSessionState msgSessionStateTable[MAX_SESSION_NUM];
+    #pragma HLS RESOURCE variable=msgSessionStateTable core=RAM_T2P_BRAM
+    #pragma HLS DEPENDENCE variable=msgSessionStateTable inter false
 
     ap_uint<4> fsmState = 0;
 
     switch(fsmState){
         case 0:{
-            if(!sessionIdFifo2.empty() && !sessionStateFifo2.empty() && !msgBodyFiFo2.empty()){
+            if(!sessionIdFifo2.empty() && !msgSessionStateFifo2.empty() && !msgBodyFiFo2.empty()){
                 ap_uint<16> currSessionID = sessionIdFifo2.read();
-                sessionState currSessionState = sessionStateFifo2.read();
+                msgSessionState currSessionState = msgSessionStateFifo2.read();
                 msgBody currMsgBody = msgBodyFiFo2.read();
 
-                sessionStateTable[currSessionID] = currSessionState;
+                msgSessionStateTable[currSessionID] = currSessionState;
             }
         }
     }
@@ -277,9 +277,9 @@ void parser(
     static ap_uint<32> currentMsgID = 1;
 
     // static value gets inited to zero by default. 
-    static sessionState sessionStateTable[MAX_SESSION_NUM];
-    #pragma HLS RESOURCE variable=sessionStateTable core=RAM_T2P_BRAM
-    #pragma HLS DEPENDENCE variable=sessionStateTable inter false
+    static msgSessionState msgSessionStateTable[MAX_SESSION_NUM];
+    #pragma HLS RESOURCE variable=msgSessionStateTable core=RAM_T2P_BRAM
+    #pragma HLS DEPENDENCE variable=msgSessionStateTable inter false
 
     enum axisFsmType {IDLE, RECOVER_STATE, READ_WORD, PARSE_WORD};
 #ifndef __SYNTHESIS__
@@ -288,7 +288,7 @@ void parser(
     static axisFsmType currAxisState = IDLE;
 
 	static ap_uint<16>          currSessionID; // 
-    static sessionState         currSessionState; // storing currMsgHeader
+    static msgSessionState         currSessionState; // storing currMsgHeader
     #pragma HLS DEPENDENCE variable=currSessionState inter false
     static msgBody              currMsgBody; // storing body, restored from ht
     #pragma HLS DEPENDENCE variable=currMsgBody inter false
@@ -326,8 +326,8 @@ void parser(
                 std::cout << "RECOVER_STATE " << response.hit << std::endl;
                 // we should expect the hash table is enough to handle all active connections; 
                 
-                // recoverying sessionState. Note that currSessionState also contains the currMsgHeader 
-                currSessionState = sessionStateTable[currSessionID];
+                // recoverying msgSessionState. Note that currSessionState also contains the currMsgHeader 
+                currSessionState = msgSessionStateTable[currSessionID];
                 std::cout << "currSessionState: " << std::endl;
                 currSessionState.display();
             
@@ -358,9 +358,9 @@ void parser(
             msgBody              currMsgBody2;
             msgBody              currMsgBody3;
 
-            sessionState         currSessionState1;
-            sessionState         currSessionState2;
-            sessionState         currSessionState3;
+            msgSessionState         currSessionState1;
+            msgSessionState         currSessionState2;
+            msgSessionState         currSessionState3;
 
             ap_uint<32> currWordParsingPos = DATA_WIDTH;
 
@@ -1708,10 +1708,10 @@ void parser(
                 case 1:
                 case 3:
                 case 16:{
-                    // end of the AXIS transaction, need to store sessionState and currMsgBody back; 
+                    // end of the AXIS transaction, need to store msgSessionState and currMsgBody back; 
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState;
+                        msgSessionStateTable[currSessionID] = currSessionState;
                     }
                     if(currMsgBody.msgID != 0)std::cout << "KV_UPDATE_INSERT currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "currSessionState: " << std::endl; currSessionState.display();
@@ -1722,7 +1722,7 @@ void parser(
                 case 17:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState;
+                        msgSessionStateTable[currSessionID] = currSessionState;
                     }
                     if(currMsgBody.msgID != 0)std::cout << "KV_DELETE currMsgBody.msgID = " << currMsgBody.msgID << ": ";
                     std::cout << "currSessionState: " << std::endl; currSessionState.display();
@@ -1736,7 +1736,7 @@ void parser(
                 case 21:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody1.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState1;
+                        msgSessionStateTable[currSessionID] = currSessionState1;
                     }
                     else{
                         currMsgBody = currMsgBody1;
@@ -1752,7 +1752,7 @@ void parser(
                 case 22:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody1.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState1;
+                        msgSessionStateTable[currSessionID] = currSessionState1;
                     }
                     else{
                         currMsgBody = currMsgBody1;
@@ -1770,7 +1770,7 @@ void parser(
                 case 26:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody2.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState2;
+                        msgSessionStateTable[currSessionID] = currSessionState2;
                     }
                     else{
                         currMsgBody = currMsgBody2;
@@ -1786,7 +1786,7 @@ void parser(
                 case 27:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_DELETE, currSessionID, currMsgBody2.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState2;
+                        msgSessionStateTable[currSessionID] = currSessionState2;
                     }
                     else{
                         currMsgBody = currMsgBody2;
@@ -1800,7 +1800,7 @@ void parser(
                 case 28:{
                     if(currWord.last){
                         s_axis_upd_req.write(hash_table_16_1024::htUpdateReq<16, 1024>(hash_table_16_1024::KV_UPDATE_INSERT, currSessionID, currMsgBody3.output_word(), 0));
-                        sessionStateTable[currSessionID] = currSessionState3;
+                        msgSessionStateTable[currSessionID] = currSessionState3;
                     }
                     else{
                         currMsgBody = currMsgBody3;

@@ -52,9 +52,10 @@ module benchmark_role #(
     axis_meta.master    m_axis_close_connection,
 
     axis_meta.slave     s_axis_notifications,
-    axis_meta.master    m_axis_read_package,
-    
-    axis_meta.slave     s_axis_rx_metadata,
+
+    axis_meta.slave     s_rxsar_rxapp_upd_rsp,
+    axis_meta.master    m_rxapp_rxsar_upd_req,
+    axis_meta.master    m_rxappstreamif_memaccessbreakdown,
     axi_stream.slave    s_axis_rx_data,
     
     axis_meta.master    m_axis_tx_metadata,
@@ -474,9 +475,6 @@ mcrouter_ip mcrouter (
    .m_axis_open_connection_V_TVALID(m_axis_open_connection.valid),        // output wire m_axis_open_connection_TVALID
    .m_axis_open_connection_V_TREADY(m_axis_open_connection.ready),        // input wire m_axis_open_connection_TREADY
    .m_axis_open_connection_V_TDATA(m_axis_open_connection.data),          // output wire [47 : 0] m_axis_open_connection_TDATA
-   .m_axis_read_package_V_TVALID(m_axis_read_package.valid),              // output wire m_axis_read_package_TVALID
-   .m_axis_read_package_V_TREADY(m_axis_read_package.ready),              // input wire m_axis_read_package_TREADY
-   .m_axis_read_package_V_TDATA(m_axis_read_package.data),                // output wire [31 : 0] m_axis_read_package_TDATA
    .m_axis_tx_data_TVALID(m_axis_tx_data.valid),                        // output wire m_axis_tx_data_TVALID
    .m_axis_tx_data_TREADY(m_axis_tx_data.ready),                        // input wire m_axis_tx_data_TREADY
    .m_axis_tx_data_TDATA(m_axis_tx_data.data),                          // output wire [63 : 0] m_axis_tx_data_TDATA
@@ -499,13 +497,19 @@ mcrouter_ip mcrouter (
    .s_axis_rx_data_TDATA(s_axis_rx_data.data),                          // input wire [63 : 0] s_axis_rx_data_TDATA
    .s_axis_rx_data_TKEEP(s_axis_rx_data.keep),                          // input wire [7 : 0] s_axis_rx_data_TKEEP
    .s_axis_rx_data_TLAST(s_axis_rx_data.last),                          // input wire [0 : 0] s_axis_rx_data_TLAST
-   .s_axis_rx_metadata_V_V_TVALID(s_axis_rx_metadata.valid),                // input wire s_axis_rx_metadata_TVALID
-   .s_axis_rx_metadata_V_V_TREADY(s_axis_rx_metadata.ready),                // output wire s_axis_rx_metadata_TREADY
-   .s_axis_rx_metadata_V_V_TDATA(s_axis_rx_metadata.data),                  // input wire [15 : 0] s_axis_rx_metadata_TDATA
    .s_axis_tx_status_V_TVALID(s_axis_tx_status.valid),                    // input wire s_axis_tx_status_TVALID
    .s_axis_tx_status_V_TREADY(s_axis_tx_status.ready),                    // output wire s_axis_tx_status_TREADY
    .s_axis_tx_status_V_TDATA(s_axis_tx_status.data),                      // input wire [23 : 0] s_axis_tx_status_TDATA
-   
+   .s_rxsar_rxapp_upd_rsp_V_TVALID(s_rxsar_rxapp_upd_rsp.valid),                            // input wire s_rxsar_rxapp_upd_rsp_V_TVALID
+   .s_rxsar_rxapp_upd_rsp_V_TREADY(s_rxsar_rxapp_upd_rsp.ready),                            // output wire s_rxsar_rxapp_upd_rsp_V_TREADY
+   .s_rxsar_rxapp_upd_rsp_V_TDATA(s_rxsar_rxapp_upd_rsp.data),                              // input wire [39 : 0] s_rxsar_rxapp_upd_rsp_V_TDATA
+   .m_rxapp_rxsar_upd_req_V_TVALID(m_rxapp_rxsar_upd_req.valid),                            // output wire m_rxapp_rxsar_upd_req_V_TVALID
+   .m_rxapp_rxsar_upd_req_V_TREADY(m_rxapp_rxsar_upd_req.ready),                            // input wire m_rxapp_rxsar_upd_req_V_TREADY
+   .m_rxapp_rxsar_upd_req_V_TDATA(m_rxapp_rxsar_upd_req.data),                              // output wire [39 : 0] m_rxapp_rxsar_upd_req_V_TDATA
+   .m_rxappstreamif_memaccessbreakdown_V_TVALID(m_rxappstreamif_memaccessbreakdown.valid),  // output wire m_rxappstreamif_memaccessbreakdown_V_TVALID
+   .m_rxappstreamif_memaccessbreakdown_V_TREADY(m_rxappstreamif_memaccessbreakdown.ready),  // input wire m_rxappstreamif_memaccessbreakdown_V_TREADY
+   .m_rxappstreamif_memaccessbreakdown_V_TDATA(m_rxappstreamif_memaccessbreakdown.data),    // output wire [71 : 0] m_rxappstreamif_memaccessbreakdown_V_TDATA
+
    //Client only
    .useConn_V(noOfConnections[13:0]),                                      // input wire [13 : 0] useConn_V
    .regIpAddress0_V(iperfAddresses[0]),                                    // input wire [31 : 0] regIpAddress1_V
@@ -721,8 +725,8 @@ ila_32_mixed benchmark_debug (
 	.probe4(m_axis_tx_data.ready), // input wire [0:0]  probe4 
 	.probe5(m_axis_tx_metadata.valid), // input wire [0:0]  probe5 
 	.probe6(m_axis_tx_metadata.ready), // input wire [0:0]  probe6 
-	.probe7(m_axis_read_package.valid), // input wire [0:0]  probe7 
-	.probe8(m_axis_read_package.ready),
+	.probe7(1'h0), // input wire [0:0]  probe7 
+	.probe8(1'h0),
 	.probe9(running),
 	.probe10(m_axis_tx_metadata.data),
 	.probe11(s_axis_udp_rx_metadata.valid),

@@ -32,9 +32,9 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 void parser(
     hls::stream<net_axis<DATA_WIDTH> >&     currWordFifo,
-    hls::stream<sessionState>&              currSessionStateFifo,
+    hls::stream<msgSessionState>&              currSessionStateFifo,
     hls::stream<msgBody>&                   currMsgBodyFifo,
-    hls::stream<sessionState>&              currSessionStateOutFifo,
+    hls::stream<msgSessionState>&              currSessionStateOutFifo,
     hls::stream<msgBody>&                   currMsgBodyStateOutFifo,
     hls::stream<ap_uint<16> >&              sessionIDOutFifo,
     hls::stream<msgHeader>&                 msgHeaderOutFifo,

@@ -63,7 +63,7 @@ int main()
             expectedKV[newKey] = newValue;
             keys.push_back(newKey);
 
-            sessionState value1;
+            msgSessionState value1;
             value1.currBodyLen = newValue;
             msgBody value2;
             value2.msgID = newValue;

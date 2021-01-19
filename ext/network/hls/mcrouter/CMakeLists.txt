@@ -24,8 +24,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/../../cma
 # @yang, using 100G U250
 set(FPGA_PART xcu250-figd2104-2L-e CACHE STRING "FPGA part")
 set(DATA_WIDTH 64 CACHE STRING "Width of data path in bytes")
-set(CLOCK_PERIOD 3.1 CACHE STRING "Target clock period in nanoseconds")
+set(CLOCK_PERIOD 6.206 CACHE STRING "Target clock period in nanoseconds")
 
+# TCP parameters
+set(TCP_STACK_MAX_SESSIONS 1000 CACHE STRING "Maximum number of sessions the TCP/IP stack can support")
+set(TCP_STACK_MSS 1460 CACHE STRING "Maximum Segment Size (MSS)")
+set(TCP_STACK_NODELAY_EN 1 CACHE BOOL "Enabling TCP_NODELAY option")
+# set(TCP_STACK_RX_DDR_BYPASS_EN 1 CACHE BOOL "Enabling DDR bypass on the RX path")
+set(TCP_STACK_RX_DDR_BYPASS_EN 0 CACHE BOOL "Enabling DDR bypass on the RX path")
+set(TCP_STACK_FAST_RETRANSMIT_EN 1 CACHE BOOL "Enabling TCP fast retransmit")
+set(TCP_STACK_WINDOW_SCALING_EN 1 CACHE BOOL "Enabling TCP window scaling option")
 
 # Find Xilinx Vivado HLS
 find_package(VivadoHLS REQUIRED)
@@ -39,18 +47,17 @@ if (DEFINED ENV{IPREPO_DIR})
 elseif(NOT  IPREPO_DIR)
    set(IPREPO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/iprepo/)
 endif()
-#install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_prj/solution1/impl/ip/
-#   DESTINATION ${IPREPO_DIR}/${PROJECT_NAME}/)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-#configure_file(${CMAKE_CURRENT_SOURCE_DIR}/mcrouter_config.hpp.in mcrouter_config.hpp)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../toe/toe_config.hpp.in toe_config.hpp)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/make.tcl.in make.tcl)
 
 
 set(EXAMPLE_HLS_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/mcrouter.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../toe/toe_config.hpp.in
     ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.cpp 
     ${CMAKE_CURRENT_SOURCE_DIR}/hash_table_16_1024/hash_table_16_1024.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/parser_stateman/parser_stateman.cpp 

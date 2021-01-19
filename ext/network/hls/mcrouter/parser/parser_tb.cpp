@@ -220,15 +220,15 @@ int get_idx(uint16_t sessionID){
 template <int W>
 void traffic_gen(
     stream<net_axis<DATA_WIDTH> >&  currWordFifo,
-    stream<sessionState>&           currSessionStateFifo,
+    stream<msgSessionState>&           currSessionStateFifo,
     stream<msgBody>&                currMsgBodyFifo,
-    stream<sessionState>&           currSessionStateOutFifo, 
+    stream<msgSessionState>&           currSessionStateOutFifo, 
     stream<msgBody>&                currMsgBodyStateOutFifo, 
     stream<ap_uint<16> >&           sessionIDOutFifo, 
     stream<msgHeader>&              msgHeaderOutFifo, 
     stream<msgBody>&                msgBodyOutFifo
 ){
-    static sessionState currSessionState[3] = {sessionState(sessionID1), sessionState(sessionID2), sessionState(sessionID3)};
+    static msgSessionState currSessionState[3] = {msgSessionState(sessionID1), msgSessionState(sessionID2), msgSessionState(sessionID3)};
     static msgBody currMsgBody[3] = {msgBody(sessionID1), msgBody(sessionID2), msgBody(sessionID3)};
 
     static int msgCnt[3] = {0, 0, 0};
@@ -250,7 +250,7 @@ void traffic_gen(
     }
 
     if(!currSessionStateOutFifo.empty() && !currMsgBodyStateOutFifo.empty()){
-        sessionState tmp = currSessionStateOutFifo.read();
+        msgSessionState tmp = currSessionStateOutFifo.read();
         int sidx = get_idx(tmp.currSessionID);
         currSessionState[sidx] = tmp;
         currMsgBody[sidx] = currMsgBodyStateOutFifo.read();
@@ -279,9 +279,9 @@ void traffic_gen(
 int main()
 {
     stream<net_axis<DATA_WIDTH> >     currWordFifo;
-    stream<sessionState>              currSessionStateFifo;
+    stream<msgSessionState>              currSessionStateFifo;
     stream<msgBody>                   currMsgBodyFifo;
-    stream<sessionState>              currSessionStateOutFifo;
+    stream<msgSessionState>              currSessionStateOutFifo;
     stream<msgBody>                   currMsgBodyStateOutFifo;
     stream<ap_uint<16> >              sessionIDOutFifo;
     stream<msgHeader>                 msgHeaderOutFifo;
