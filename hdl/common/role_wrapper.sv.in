@@ -52,9 +52,10 @@ module role_wrapper #(
     axis_meta.master    m_axis_close_connection,
 
     axis_meta.slave     s_axis_notifications,
-    axis_meta.master    m_axis_read_package,
     
-    axis_meta.slave     s_axis_rx_metadata,
+    axis_meta.slave     s_rxsar_rxapp_upd_rsp,
+    axis_meta.master    m_rxapp_rxsar_upd_req,
+    axis_meta.master    m_rxappstreamif_memaccessbreakdown,
     axi_stream.slave    s_axis_rx_data,
     
     axis_meta.master    m_axis_tx_metadata,
@@ -193,8 +194,9 @@ axis_meta #(.WIDTH(48))      axis_tcp_open_connection();
 axis_meta #(.WIDTH(24))      axis_tcp_open_status();
 axis_meta #(.WIDTH(16))      axis_tcp_close_connection();
 axis_meta #(.WIDTH(88))      axis_tcp_notifications();
-axis_meta #(.WIDTH(32))      axis_tcp_read_package();
-axis_meta #(.WIDTH(16))      axis_tcp_rx_metadata();
+axis_meta #(.WIDTH(40))     axis_rxsar_rxapp_upd_rsp();
+axis_meta #(.WIDTH(40))     axis_rxapp_rxsar_upd_req();
+axis_meta #(.WIDTH(72))     axis_rxappstreamif_memaccessbreakdown();
 axi_stream #(.WIDTH(NETWORK_STACK_WIDTH))    axis_tcp_rx_data();
 axis_meta #(.WIDTH(32))      axis_tcp_tx_metadata();
 axi_stream #(.WIDTH(NETWORK_STACK_WIDTH))    axis_tcp_tx_data();
@@ -219,8 +221,10 @@ ${ROLE_NAME} #(
     .s_axis_open_status(axis_tcp_open_status),
     .m_axis_close_connection(axis_tcp_close_connection),
     .s_axis_notifications(axis_tcp_notifications),
-    .m_axis_read_package(axis_tcp_read_package),
-    .s_axis_rx_metadata(axis_tcp_rx_metadata),
+    
+    .s_rxsar_rxapp_upd_rsp(axis_rxsar_rxapp_upd_rsp),
+    .m_rxapp_rxsar_upd_req(axis_rxapp_rxsar_upd_req),
+    .m_rxappstreamif_memaccessbreakdown(axis_rxappstreamif_memaccessbreakdown),
     .s_axis_rx_data(axis_tcp_rx_data),
     .m_axis_tx_metadata(axis_tcp_tx_metadata),
     .m_axis_tx_data(axis_tcp_tx_data), //output wire
@@ -329,21 +333,6 @@ axis_data_fifo_16_cc_cnt tcp_close_connection_inst (
   .axis_wr_data_count(),
   .axis_rd_data_count()
 );
-axis_data_fifo_32_cc_cnt tcp_read_package_inst (
-  .s_axis_aresetn(user_aresetn),
-  .s_axis_aclk(user_clk),
-  .s_axis_tvalid(axis_tcp_read_package.valid),
-  .s_axis_tready(axis_tcp_read_package.ready),
-  .s_axis_tdata(axis_tcp_read_package.data),
-  
-  .m_axis_aclk(${ROLE_CLK}_clk),
-  .m_axis_tvalid(m_axis_read_package.valid),
-  .m_axis_tready(m_axis_read_package.ready),
-  .m_axis_tdata(m_axis_read_package.data), 
-  
-  .axis_wr_data_count(),
-  .axis_rd_data_count()
-);
 axis_data_fifo_32_cc_cnt tcp_tx_metadata_inst (
   .s_axis_aresetn(user_aresetn),
   .s_axis_aclk(user_clk),
@@ -355,6 +344,36 @@ axis_data_fifo_32_cc_cnt tcp_tx_metadata_inst (
   .m_axis_tvalid(m_axis_tx_metadata.valid),
   .m_axis_tready(m_axis_tx_metadata.ready),
   .m_axis_tdata(m_axis_tx_metadata.data), 
+  
+  .axis_wr_data_count(),
+  .axis_rd_data_count()
+);
+axis_data_fifo_40_cc_cnt rxapp_rxsar_upd_req_inst (
+  .s_axis_aresetn(user_aresetn),
+  .s_axis_aclk(user_clk),
+  .s_axis_tvalid(axis_rxapp_rxsar_upd_req.valid),
+  .s_axis_tready(axis_rxapp_rxsar_upd_req.ready),
+  .s_axis_tdata(axis_rxapp_rxsar_upd_req.data),
+  
+  .m_axis_aclk(${ROLE_CLK}_clk),
+  .m_axis_tvalid(m_rxapp_rxsar_upd_req.valid),
+  .m_axis_tready(m_rxapp_rxsar_upd_req.ready),
+  .m_axis_tdata(m_rxapp_rxsar_upd_req.data), 
+  
+  .axis_wr_data_count(),
+  .axis_rd_data_count()
+);
+axis_data_fifo_72_cc_cnt rxappstreamif_memaccessbreakdown_inst (
+  .s_axis_aresetn(user_aresetn),
+  .s_axis_aclk(user_clk),
+  .s_axis_tvalid(axis_rxappstreamif_memaccessbreakdown.valid),
+  .s_axis_tready(axis_rxappstreamif_memaccessbreakdown.ready),
+  .s_axis_tdata(axis_rxappstreamif_memaccessbreakdown.data),
+  
+  .m_axis_aclk(${ROLE_CLK}_clk),
+  .m_axis_tvalid(m_rxappstreamif_memaccessbreakdown.valid),
+  .m_axis_tready(m_rxappstreamif_memaccessbreakdown.ready),
+  .m_axis_tdata(m_rxappstreamif_memaccessbreakdown.data), 
   
   .axis_wr_data_count(),
   .axis_rd_data_count()
@@ -410,6 +429,21 @@ axis_data_fifo_24_cc_cnt tcp_open_status_inst (
   .axis_wr_data_count(),
   .axis_rd_data_count()
 );
+axis_data_fifo_40_cc_cnt rxsar_rxapp_upd_rsp_inst (
+  .s_axis_aresetn(${ROLE_CLK}_aresetn),
+  .s_axis_aclk(${ROLE_CLK}_clk),
+  .s_axis_tvalid(s_rxsar_rxapp_upd_rsp.valid),
+  .s_axis_tready(s_rxsar_rxapp_upd_rsp.ready),
+  .s_axis_tdata(s_rxsar_rxapp_upd_rsp.data),
+  
+  .m_axis_aclk(user_clk),
+  .m_axis_tvalid(axis_rxsar_rxapp_upd_rsp.valid),
+  .m_axis_tready(axis_rxsar_rxapp_upd_rsp.ready),
+  .m_axis_tdata(axis_rxsar_rxapp_upd_rsp.data), 
+  
+  .axis_wr_data_count(),
+  .axis_rd_data_count()
+);
 axis_data_fifo_88_cc_cnt tcp_notifications_inst (
   .s_axis_aresetn(${ROLE_CLK}_aresetn),
   .s_axis_aclk(${ROLE_CLK}_clk),
@@ -421,21 +455,6 @@ axis_data_fifo_88_cc_cnt tcp_notifications_inst (
   .m_axis_tvalid(axis_tcp_notifications.valid),
   .m_axis_tready(axis_tcp_notifications.ready),
   .m_axis_tdata(axis_tcp_notifications.data), 
-  
-  .axis_wr_data_count(),
-  .axis_rd_data_count()
-);
-axis_data_fifo_16_cc_cnt tcp_rx_metadata_inst (
-  .s_axis_aresetn(${ROLE_CLK}_aresetn),
-  .s_axis_aclk(${ROLE_CLK}_clk),
-  .s_axis_tvalid(s_axis_rx_metadata.valid),
-  .s_axis_tready(s_axis_rx_metadata.ready),
-  .s_axis_tdata(s_axis_rx_metadata.data),
-  
-  .m_axis_aclk(user_clk),
-  .m_axis_tvalid(axis_tcp_rx_metadata.valid),
-  .m_axis_tready(axis_tcp_rx_metadata.ready),
-  .m_axis_tdata(axis_tcp_rx_metadata.data), 
   
   .axis_wr_data_count(),
   .axis_rd_data_count()

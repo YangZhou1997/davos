@@ -62,9 +62,10 @@ module tcp_stack #(
     axis_meta.slave     s_axis_close_connection,
 
     axis_meta.master    m_axis_notifications,
-    axis_meta.slave     s_axis_read_package,
     
-    axis_meta.master    m_axis_rx_metadata,
+    axis_meta.master    m_rxsar_rxapp_upd_rsp,
+    axis_meta.slave     s_rxapp_rxsar_upd_req,
+    axis_meta.slave     s_rxappstreamif_memaccessbreakdown,
     axi_stream.master   m_axis_rx_data,
     
     axis_meta.slave     s_axis_tx_metadata,
@@ -123,8 +124,9 @@ axis_meta #(.WIDTH(24))     axis_open_status();
 axis_meta #(.WIDTH(16))     axis_close_connection();
 
 axis_meta #(.WIDTH(88))     axis_notifications();
-axis_meta #(.WIDTH(32))     axis_read_package();
-axis_meta #(.WIDTH(16))     axis_rx_metadata();
+axis_meta #(.WIDTH(40))     axis_rxsar_rxapp_upd_rsp();
+axis_meta #(.WIDTH(40))     axis_rxapp_rxsar_upd_req();
+axis_meta #(.WIDTH(72))     axis_rxappstreamif_memaccessbreakdown();
 axis_meta #(.WIDTH(32))     axis_tx_metadata();
 
 
@@ -250,9 +252,6 @@ toe_ip toe_inst (
 .m_axis_notification_V_TVALID(axis_notifications.valid),
 .m_axis_notification_V_TREADY(axis_notifications.ready),
 .m_axis_notification_V_TDATA(axis_notifications.data),
-.s_axis_rx_data_req_V_TVALID(axis_read_package.valid),
-.s_axis_rx_data_req_V_TREADY(axis_read_package.ready),
-.s_axis_rx_data_req_V_TDATA(axis_read_package.data),
 
 // open&close connection
 .s_axis_open_conn_req_V_TVALID(axis_open_connection.valid),
@@ -266,9 +265,15 @@ toe_ip toe_inst (
 .s_axis_close_conn_req_V_V_TDATA(axis_close_connection.data),
 
 // rx data
-.m_axis_rx_data_rsp_metadata_V_V_TVALID(axis_rx_metadata.valid),
-.m_axis_rx_data_rsp_metadata_V_V_TREADY(axis_rx_metadata.ready),
-.m_axis_rx_data_rsp_metadata_V_V_TDATA(axis_rx_metadata.data),
+.m_rxsar_rxapp_upd_rsp_V_TVALID(axis_rxsar_rxapp_upd_rsp.valid),                            // output wire m_rxsar_rxapp_upd_rsp_V_TVALID
+.m_rxsar_rxapp_upd_rsp_V_TREADY(axis_rxsar_rxapp_upd_rsp.ready),                            // input wire m_rxsar_rxapp_upd_rsp_V_TREADY
+.m_rxsar_rxapp_upd_rsp_V_TDATA(axis_rxsar_rxapp_upd_rsp.data),                              // output wire [39 : 0] m_rxsar_rxapp_upd_rsp_V_TDATA
+.s_rxapp_rxsar_upd_req_V_TVALID(axis_rxapp_rxsar_upd_req.valid),                            // input wire s_rxapp_rxsar_upd_req_V_TVALID
+.s_rxapp_rxsar_upd_req_V_TREADY(axis_rxapp_rxsar_upd_req.ready),                            // output wire s_rxapp_rxsar_upd_req_V_TREADY
+.s_rxapp_rxsar_upd_req_V_TDATA(axis_rxapp_rxsar_upd_req.data),                              // input wire [39 : 0] s_rxapp_rxsar_upd_req_V_TDATA
+.s_rxappstreamif_memaccessbreakdown_V_TVALID(axis_rxappstreamif_memaccessbreakdown.valid),  // input wire s_rxappstreamif_memaccessbreakdown_V_TVALID
+.s_rxappstreamif_memaccessbreakdown_V_TREADY(axis_rxappstreamif_memaccessbreakdown.ready),  // output wire s_rxappstreamif_memaccessbreakdown_V_TREADY
+.s_rxappstreamif_memaccessbreakdown_V_TDATA(axis_rxappstreamif_memaccessbreakdown.data),    // input wire [71 : 0] s_rxappstreamif_memaccessbreakdown_V_TDATA
 .m_axis_rx_data_rsp_TVALID(m_axis_rx_data.valid),
 .m_axis_rx_data_rsp_TREADY(m_axis_rx_data.ready),
 .m_axis_rx_data_rsp_TDATA(m_axis_rx_data.data),
@@ -861,27 +866,39 @@ axis_register_slice_88 notification_slice (
   .m_axis_tdata(m_axis_notifications.data)    // output wire [7 : 0] m_axis_tdata
 );
 
-axis_register_slice_32 read_package_slice (
+axis_register_slice_40 m_rxsar_rxapp_upd_rsp_slice (
   .aclk(net_clk),                    // input wire aclk
   .aresetn(net_aresetn),              // input wire aresetn
-  .s_axis_tvalid(s_axis_read_package.valid),  // input wire s_axis_tvalid
-  .s_axis_tready(s_axis_read_package.ready),  // output wire s_axis_tready
-  .s_axis_tdata(s_axis_read_package.data),    // input wire [7 : 0] s_axis_tdata
-  .m_axis_tvalid(axis_read_package.valid),  // output wire m_axis_tvalid
-  .m_axis_tready(axis_read_package.ready),  // input wire m_axis_tready
-  .m_axis_tdata(axis_read_package.data)    // output wire [7 : 0] m_axis_tdata
+  .s_axis_tvalid(axis_rxsar_rxapp_upd_rsp.valid),  // input wire s_axis_tvalid
+  .s_axis_tready(axis_rxsar_rxapp_upd_rsp.ready),  // output wire s_axis_tready
+  .s_axis_tdata(axis_rxsar_rxapp_upd_rsp.data),    // input wire [7 : 0] s_axis_tdata
+  .m_axis_tvalid(m_rxsar_rxapp_upd_rsp.valid),  // output wire m_axis_tvalid
+  .m_axis_tready(m_rxsar_rxapp_upd_rsp.ready),  // input wire m_axis_tready
+  .m_axis_tdata(m_rxsar_rxapp_upd_rsp.data)    // output wire [7 : 0] m_axis_tdata
 );
 
-axis_register_slice_16 axis_rx_metadata_slice (
+axis_register_slice_40 s_rxapp_rxsar_upd_req_slice (
   .aclk(net_clk),                    // input wire aclk
   .aresetn(net_aresetn),              // input wire aresetn
-  .s_axis_tvalid(axis_rx_metadata.valid),  // input wire s_axis_tvalid
-  .s_axis_tready(axis_rx_metadata.ready),  // output wire s_axis_tready
-  .s_axis_tdata(axis_rx_metadata.data),    // input wire [7 : 0] s_axis_tdata
-  .m_axis_tvalid(m_axis_rx_metadata.valid),  // output wire m_axis_tvalid
-  .m_axis_tready(m_axis_rx_metadata.ready),  // input wire m_axis_tready
-  .m_axis_tdata(m_axis_rx_metadata.data)    // output wire [7 : 0] m_axis_tdata
+  .s_axis_tvalid(s_rxapp_rxsar_upd_req.valid),  // input wire s_axis_tvalid
+  .s_axis_tready(s_rxapp_rxsar_upd_req.ready),  // output wire s_axis_tready
+  .s_axis_tdata(s_rxapp_rxsar_upd_req.data),    // input wire [7 : 0] s_axis_tdata
+  .m_axis_tvalid(axis_rxapp_rxsar_upd_req.valid),  // output wire m_axis_tvalid
+  .m_axis_tready(axis_rxapp_rxsar_upd_req.ready),  // input wire m_axis_tready
+  .m_axis_tdata(axis_rxapp_rxsar_upd_req.data)    // output wire [7 : 0] m_axis_tdata
 );
+
+axis_register_slice_72 s_rxappstreamif_memaccessbreakdown_slice (
+  .aclk(net_clk),                    // input wire aclk
+  .aresetn(net_aresetn),              // input wire aresetn
+  .s_axis_tvalid(s_rxappstreamif_memaccessbreakdown.valid),  // input wire s_axis_tvalid
+  .s_axis_tready(s_rxappstreamif_memaccessbreakdown.ready),  // output wire s_axis_tready
+  .s_axis_tdata(s_rxappstreamif_memaccessbreakdown.data),    // input wire [7 : 0] s_axis_tdata
+  .m_axis_tvalid(axis_rxappstreamif_memaccessbreakdown.valid),  // output wire m_axis_tvalid
+  .m_axis_tready(axis_rxappstreamif_memaccessbreakdown.ready),  // input wire m_axis_tready
+  .m_axis_tdata(axis_rxappstreamif_memaccessbreakdown.data)    // output wire [7 : 0] m_axis_tdata
+);
+
 axis_register_slice_32 axis_tx_metadata_slice (
   .aclk(net_clk),                    // input wire aclk
   .aresetn(net_aresetn),              // input wire aresetn
@@ -941,10 +958,11 @@ assign m_axis_open_status.valid = 1'b0;
 assign s_axis_close_connection.ready = 1'b0;
 
 assign m_axis_notifications.valid = 1'b0;
-assign s_axis_read_package.ready = 1'b0;
-
-assign m_axis_rx_metadata.valid = 1'b0;
 assign m_axis_rx_data.valid = 1'b0;
+
+assign m_rxsar_rxapp_upd_rsp.valid = 1'b0;
+assign s_rxapp_rxsar_upd_req.ready = 1'b0;
+assign s_rxappstreamif_memaccessbreakdown.ready = 1'b0;
 
 assign s_axis_tx_metadata.ready = 1'b0;
 assign s_axis_tx_data.ready = 1'b0;

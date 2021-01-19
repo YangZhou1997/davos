@@ -21,6 +21,17 @@ parameter NUM_DDR_CHANNELS = 2;
 parameter NUM_TCP_CHANNELS = 2;
 parameter NUM_NET_PORTS = 2;
 
+//TCP window scaling option
+`define WINDOW_SCALE${TCP_STACK_WINDOW_SCALING_EN}
+parameter WINDOW_SCALE_BITS = 2;
+
+`ifdef WINDOW_SCALE1
+parameter WINDOW_BITS = 16 + WINDOW_SCALE_BITS;
+`endif
+`ifdef WINDOW_SCALE0
+parameter WINDOW_BITS = 16;
+`endif
+
 
 `define DRAM_EN${DRAM_EN}${TCP_STACK_EN}
 

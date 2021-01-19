@@ -575,11 +575,12 @@ void iperf_client(	hls::stream<ap_uint<16> >& listenPort,
 	#pragma HLS INTERFACE ap_none register port=regIpAddress8
 	#pragma HLS INTERFACE ap_none register port=regIpAddress9
     
-    #pragma HLS INTERFACE axis register port=rxSar2rxApp_upd_rsp name=m_rxsar_rxapp_upd_rsp
-	#pragma HLS INTERFACE axis register port=rxApp2rxSar_upd_req name=s_rxapp_rxsar_upd_req
-	#pragma HLS INTERFACE axis register port=rxAppStreamIf2memAccessBreakdown name=s_rxappstreamif_memaccessbreakdown
+    #pragma HLS INTERFACE axis register port=rxSar2rxApp_upd_rsp name=s_rxsar_rxapp_upd_rsp
+	#pragma HLS INTERFACE axis register port=rxApp2rxSar_upd_req name=m_rxapp_rxsar_upd_req
+	#pragma HLS INTERFACE axis register port=rxAppStreamIf2memAccessBreakdown name=m_rxappstreamif_memaccessbreakdown
 	#pragma HLS DATA_PACK variable=rxSar2rxApp_upd_rsp
     #pragma HLS DATA_PACK variable=rxApp2rxSar_upd_req
+    #pragma HLS DATA_PACK variable=rxAppStreamIf2memAccessBreakdown
 	
 	static hls::stream<bool>		startSignalFifo("startSignalFifo");
 	static hls::stream<bool>		stopSignalFifo("stopSignalFifo");

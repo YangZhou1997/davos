@@ -97,15 +97,15 @@ module network_stack #(
     axis_meta.slave     s_axis_close_connection,
 
     axis_meta.master    m_axis_notifications,
-    axis_meta.slave     s_axis_read_package,
     
-    axis_meta.master    m_axis_rx_metadata,
+    axis_meta.master    m_rxsar_rxapp_upd_rsp,
+    axis_meta.slave     s_rxapp_rxsar_upd_req,
+    axis_meta.slave     s_rxappstreamif_memaccessbreakdown,
     axi_stream.master   m_axis_rx_data,
     
     axis_meta.slave     s_axis_tx_metadata,
     axi_stream.slave    s_axis_tx_data,
     axis_meta.master    m_axis_tx_status,
-    
     
     //UDP/IP Interface
     axis_meta.master    m_axis_udp_rx_metadata,
@@ -296,9 +296,10 @@ tcp_stack #(
      .s_axis_close_connection(s_axis_close_connection),
      
      .m_axis_notifications(m_axis_notifications),
-     .s_axis_read_package(s_axis_read_package),
      
-     .m_axis_rx_metadata(m_axis_rx_metadata),
+     .m_rxsar_rxapp_upd_rsp(m_rxsar_rxapp_upd_rsp),
+     .s_rxapp_rxsar_upd_req(s_rxapp_rxsar_upd_req),
+     .s_rxappstreamif_memaccessbreakdown(s_rxappstreamif_memaccessbreakdown),
      .m_axis_rx_data(m_axis_rx_data),
      
      .s_axis_tx_metadata(s_axis_tx_metadata),

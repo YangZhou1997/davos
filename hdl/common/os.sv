@@ -201,9 +201,10 @@ axis_meta #(.WIDTH(48))     axis_tcp_open_connection();
 axis_meta #(.WIDTH(24))     axis_tcp_open_status();
 axis_meta #(.WIDTH(16))     axis_tcp_close_connection();
 axis_meta #(.WIDTH(88))     axis_tcp_notification();
-axis_meta #(.WIDTH(32))     axis_tcp_read_pkg();
 
-axis_meta #(.WIDTH(16))     axis_tcp_rx_meta();
+axis_meta #(.WIDTH(40))     axis_rxsar_rxapp_upd_rsp();
+axis_meta #(.WIDTH(40))     axis_rxapp_rxsar_upd_req();
+axis_meta #(.WIDTH(72))     axis_rxappstreamif_memaccessbreakdown();
 axi_stream #(.WIDTH(NETWORK_STACK_WIDTH))    axis_tcp_rx_data();
 axis_meta #(.WIDTH(32))     axis_tcp_tx_meta();
 axi_stream #(.WIDTH(NETWORK_STACK_WIDTH))    axis_tcp_tx_data();
@@ -241,8 +242,10 @@ role_wrapper #(
     .s_axis_open_status(axis_tcp_open_status),
     .m_axis_close_connection(axis_tcp_close_connection),
     .s_axis_notifications(axis_tcp_notification),
-    .m_axis_read_package(axis_tcp_read_pkg),
-    .s_axis_rx_metadata(axis_tcp_rx_meta),
+
+    .s_rxsar_rxapp_upd_rsp(axis_rxsar_rxapp_upd_rsp),
+    .m_rxapp_rxsar_upd_req(axis_rxapp_rxsar_upd_req),
+    .m_rxappstreamif_memaccessbreakdown(axis_rxappstreamif_memaccessbreakdown),     
     .s_axis_rx_data(axis_tcp_rx_data),
     .m_axis_tx_metadata(axis_tcp_tx_meta),
     .m_axis_tx_data(axis_tcp_tx_data),
@@ -524,8 +527,10 @@ network_stack #(
     .m_axis_open_status(axis_tcp_open_status),
     .s_axis_close_connection(axis_tcp_close_connection),
     .m_axis_notifications(axis_tcp_notification),
-    .s_axis_read_package(axis_tcp_read_pkg),
-    .m_axis_rx_metadata(axis_tcp_rx_meta),
+    
+    .m_rxsar_rxapp_upd_rsp(axis_rxsar_rxapp_upd_rsp),
+    .s_rxapp_rxsar_upd_req(axis_rxapp_rxsar_upd_req),
+    .s_rxappstreamif_memaccessbreakdown(axis_rxappstreamif_memaccessbreakdown), 
     .m_axis_rx_data(axis_tcp_rx_data),
     .s_axis_tx_metadata(axis_tcp_tx_meta),
     .s_axis_tx_data(axis_tcp_tx_data),
